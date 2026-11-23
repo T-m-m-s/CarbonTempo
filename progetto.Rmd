@@ -1,0 +1,161 @@
+---
+title: "OWID_co2"
+author: "Samuele Antonello 162640"
+date: "2026-11-11"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE, message = FALSE, warning = FALSE)
+```
+
+Importazione dei dati:
+```{r}
+library(tidyverse)
+library(readr)
+raw_data = read_csv("owid_co2.csv")
+```
+
+Il dataset riporta 56269 righe e 79 colonne con dati inerenti alle emissioni di CO2 che vanno dal 1750 al 2025, prima di cominciare a manipolare questi dati abbiamo bisogno di pulire questo dataset:
+
+Selezioniamo le colonne che ci interessano
+```{r}
+data_selected = raw_data|>
+  select(country, iso_code, year, population, co2, co2_per_capita, cumulative_co2, coal_co2, oil_co2, gas_co2)
+
+data_countries = data_selected|>
+  filter(!is.na(iso_code))|>
+  #sostituiamo i valori NA dei singoli combustibili con 0 solo dove il dato co2 totale esiste:
+  mutate(
+    across(c(coal_co2, oil_co2, gas_co2), ~ replace_na(.,0))
+  )
+```
+
+Creiamo ora un dataset separato per il totale mondiale e i macro-continenti:
+```{r}
+data_continents = data_selected|>
+  filter(country %in% c("World","Africa","America","Asia","Europe","North America","South America", "Oceania"))
+
+data_continents
+```
+
+Vediamo ora un po di statistiche descrittive dai dataset che abbiamo estratto per comprendere la responsabilità storica delle emissioni di CO2:
+
+```{r}
+data_countries|>
+  filter(year == 2025)|>
+  summarise(
+    Paesi = n(),
+    Media_CO2 = mean(co2, na.rm = TRUE),
+    Mediana_CO2 = median(co2, na.rm = TRUE),
+    Max_CO2 = max(co2, na.rm = TRUE),
+    Media_ProCapite = mean(co2_per_capita, na.rm = TRUE),
+    Mediana_ProCapite = median(co2_per_capita, na.rm = TRUE)
+  )
+
+data_countries|>
+  filter(year == 2025, !is.na(cumulative_co2))|>
+  slice_max(cumulative_co2, n = 10)|>
+  ggplot(aes(x = reorder(country, cumulative_co2), y = cumulative_co2/1000))+
+  geom_col(fill = "#1d3557")+
+  coord_flip()+
+  labs(
+    title = "Top 10 paesi per emissioni cumulative storiche (1750-2025)",
+    x = NULL,
+    y = "CO2 cumulativa (miliardi di tonnellate)"
+  ) +
+  theme_minimal()
+
+```
+
+Emissioni procapite e dinamica dei continenti:
+```{r}
+data_countries|>
+  filter(year == 2025, !is.na(co2_per_capita), !is.na(population), population > 1e6)|>
+  ggplot(aes(x = population, y = co2_per_capita, size = co2))+
+  geom_point(alpha = 0.65, colour = "darkred")+
+  geom_text(
+    aes(label = ifelse(co2 > 1500 | co2_per_capita > 18 | country == "Italy", country, "")),
+    vjust = -0.8, size = 3, check_overlap = TRUE
+  ) +
+  scale_x_log10(labels = scales::label_number(scale_cut = scales::cut_short_scale())) +
+  scale_size_continuous(range = c(2, 14), labels = scales::comma) +
+  labs(
+    title = "Popolazione vs Emissioni pro capite (Paesi > 1M abitanti, 2025)",
+    x = "Popolazione (scala logaritmica)",
+    y = "CO2 pro capite (tonnellate / persona)",
+    size = "CO2 totale (Mt)"
+  ) +
+  theme_minimal()
+```
+
+
+Trend continentale:
+```{r}
+data_continents|>
+  filter(country != "World", year >= 1950)|>
+  ggplot(aes(x = year, y = co2, color = country))+
+  geom_line(linewidth = 1.3)+
+  labs(
+    title = "Andamento delle emissioni annuali per continente (1950–2025)",
+    x = "Anno",
+    y = "Emissioni annuali (milioni di tonnellate)",
+    color = "Continente"
+  ) +
+  theme_minimal()
+```
+
+
+Esportazione parametri per il Data-driven sampler:
+
+```{r}
+library(jsonlite)
+library(tidyverse)
+target_regions = c("Europe","North America", "Asia", "Africa")
+target_years = c(1900, 1950, 1990, 2025)
+
+sampler_pads = data_continents|>
+  filter(
+    country %in% target_regions,
+    year %in% target_years,
+  )|>
+  mutate(
+    across(c(coal_co2, oil_co2, gas_co2),~ replace_na(.,0)),
+    country = factor(country, levels = target_regions),
+    dominant_fuel = case_when(
+      coal_co2 >= oil_co2 & coal_co2 >= gas_co2 ~ "coal",
+      oil_co2 >= coal_co2 & oil_co2 >= gas_co2 ~ "oil",
+      TRUE ~ "gas"
+    ),
+    #mappatura parametri sonori
+    freq_hz = round(65 + (co2_per_capita / max(co2_per_capita)) * 520, 1),
+    gain_norm = round(0.2 + 0.8 *(sqrt(co2)/sqrt(max(co2))),3),
+    decay_sec = round(0.25 + 2.2 * (cumulative_co2 / max(cumulative_co2)), 2)
+  )|>
+  arrange(country, year)|>
+  select(
+    country, year, co2, co2_per_capita, cumulative_co2, dominant_fuel, freq_hz, gain_norm, decay_sec
+  )
+
+write_json(sampler_pads, "sampler_data.json", pretty = TRUE)
+sampler_pads
+  
+  
+  
+  
+```
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
