@@ -18,18 +18,17 @@ In questo documento analizziamo il dataset **Our World in Data (OWID) – CO₂ 
 
 Il lavoro segue la classica *pipeline* della data science:
 
-1. **Importazione**: leggiamo il file CSV in R.
-2. **Pulizia**: teniamo solo le colonne utili e separiamo i *paesi* dagli *aggregati* (mondo, continenti).
-3. **Analisi descrittiva**: calcoliamo qualche statistica per capire chi emette di più, in totale e per persona.
-4. **Visualizzazione**: costruiamo tre grafici con `ggplot2`.
-5. **Comunicazione / arte dei dati**: trasformiamo alcuni dati in parametri sonori (altezza, volume, durata del suono) da usare in un *sampler*. Questa è la base della nostra opera artistica basata sull'**udito**.
+1.  **Importazione**: leggiamo il file CSV in R.
+2.  **Pulizia**: teniamo solo le colonne utili e separiamo i *paesi* dagli *aggregati* (mondo, continenti).
+3.  **Analisi descrittiva**: calcoliamo qualche statistica per capire chi emette di più, in totale e per persona.
+4.  **Visualizzazione**: costruiamo tre grafici con `ggplot2`.
+5.  **Comunicazione / arte dei dati**: trasformiamo alcuni dati in parametri sonori (altezza, volume, durata del suono) da usare in un *sampler*. Questa è la base della nostra opera artistica basata sull'**udito**.
 
 Unità di misura da ricordare: `co2` è in **milioni di tonnellate (Mt)**, `co2_per_capita` in **tonnellate per persona**, `cumulative_co2` in **milioni di tonnellate** accumulate dal 1750 a oggi.
 
 # 1. Importazione dei dati
 
-Carichiamo `tidyverse` (che include già `readr`, `dplyr`, `ggplot2`, `tidyr`...) e `jsonlite`, che useremo alla fine per esportare i dati in formato JSON.
-Il file `owid_co2.csv` deve trovarsi **nella stessa cartella** di questo `.Rmd`.
+Carichiamo `tidyverse` (che include già `readr`, `dplyr`, `ggplot2`, `tidyr`...) e `jsonlite`, che useremo alla fine per esportare i dati in formato JSON. Il file `owid_co2.csv` deve trovarsi **nella stessa cartella** di questo `.Rmd`.
 
 ```{r}
 library(tidyverse)
@@ -38,8 +37,7 @@ library(jsonlite)
 raw_data = read_csv("owid_co2.csv")
 ```
 
-Il dataset contiene **`r nrow(raw_data)` righe** e **`r ncol(raw_data)` colonne**, con osservazioni che vanno dal **`r min(raw_data$year)`** al **`r max(raw_data$year)`**.
-Ogni riga corrisponde a *una nazione o regione in un certo anno*. Prima di analizzarlo dobbiamo pulirlo.
+Il dataset contiene **`r nrow(raw_data)` righe** e **`r ncol(raw_data)` colonne**, con osservazioni che vanno dal **`r min(raw_data$year)`** al **`r max(raw_data$year)`**. Ogni riga corrisponde a *una nazione o regione in un certo anno*. Prima di analizzarlo dobbiamo pulirlo.
 
 # 2. Pulizia dei dati
 
@@ -55,27 +53,31 @@ data_selected = raw_data |>
 
 ## 2.2 Paesi veri e aggregati: un controllo importante
 
-Nella colonna `country` non ci sono solo gli stati: ci sono anche righe che sono **somme di più paesi** (ad esempio "World", "Europe", "High-income countries"). Se le mescolassimo ai paesi, conteremmo le stesse emissioni più volte.
-
-Il trucco: gli stati hanno un `iso_code` (es. "ITA"), gli aggregati di solito no (`NA`). Verifichiamo se qualche aggregato ha un codice che inizia per "OWID":
+Nella colonna `country` non ci sono solo i paesi, ma anche aggregati come "World", "Europe" o "Asia": se li sommassimo ai paesi conteremmo le stesse emissioni più volte. Gli aggregati non hanno un `iso_code`, quindi teniamo solo le righe in cui è presente e controlliamo quali nomi rimangono.
 
 ```{r}
-data_selected |>
-  filter(str_starts(iso_code, "OWID")) |>
-  distinct(country, iso_code)
+data_countries <- data_selected |>
+  filter(!is.na(iso_code)) 
+
+data_countries
+
+data_countries |>
+  distinct(country,iso_code)
 ```
 
-Teniamo quindi le righe con `iso_code` valido ed escludiamo il codice del mondo (`OWID_WRL`), nel caso fosse presente.
+Teniamo quindi le righe con `iso_code` valido.
 
-Inoltre, per le emissioni dei singoli combustibili (carbone, petrolio, gas) i valori mancanti (`NA`) di solito significano "nessuna emissione registrata". Li sostituiamo con 0, **ma solo quando il dato totale `co2` esiste**, altrimenti inventeremmo informazioni dove in realtà non abbiamo dati.
+Nelle colonne dei combustibili (carbone, petrolio, gas) ci sono molti valori mancanti (`NA`). Se il totale `co2` esiste, assumiamo che il valore mancante voglia dire "nessuna emissione registrata" e lo sostituiamo con 0. Se invece manca anche `co2`, lasciamo `NA`, perché per quella riga non abbiamo informazioni.
 
 ```{r}
-data_countries = data_selected |>
-  filter(!is.na(iso_code), iso_code != "OWID_WRL") |>
+data_countries = data_countries |>
   mutate(
-    across(c(coal_co2, oil_co2, gas_co2),
-           ~ if_else(!is.na(co2) & is.na(.x), 0, .x))
+    coal_co2 = if_else(is.na(coal_co2) & !is.na(co2), 0, coal_co2),
+    oil_co2 = if_else(is.na(oil_co2) & !is.na(co2), 0, oil_co2),
+    gas_co2 = if_else(is.na(gas_co2) & !is.na(co2), 0, gas_co2)
   )
+
+data_countries
 ```
 
 ## 2.3 Dataset separato per mondo e continenti
@@ -88,6 +90,9 @@ data_continents = data_selected |>
                         "North America", "South America", "Oceania"))
 
 data_continents
+
+data_continents |>
+  distinct(country)
 ```
 
 # 3. Statistiche descrittive
@@ -209,7 +214,7 @@ Scegliamo 4 regioni e 4 anni-chiave, per un totale di 16 suoni:
 Ad ogni variabile del dataset associamo **una dimensione sonora** diversa:
 
 | Dato | Suono | Perché ha senso |
-|---|---|---|
+|------------------------|------------------------|------------------------|
 | `co2_per_capita` | **altezza** (frequenza in Hz) | Più ognuno emette, più il suono è acuto e "teso" |
 | `co2` (totale) | **volume** (gain) | Più emissioni totali, più il suono è forte |
 | `cumulative_co2` | **durata** (decay in secondi) | La CO₂ resta in atmosfera per secoli: più è accumulata, più il suono si prolunga |
