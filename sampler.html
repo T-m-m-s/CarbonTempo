@@ -610,6 +610,51 @@
     .step-btn.on-1990 { background: #8c2d3e; border-color: #fb7185; color: #ffe4e6; }
     .step-btn.on-2025 { background: #9b3019; border-color: #f97316; color: #ffedd5; }
 
+    .brush-group {
+      display: inline-flex;
+      gap: 3px;
+      align-items: center;
+      background: #14100d;
+      border: 1px solid var(--border);
+      border-radius: 6px;
+      padding: 2px;
+    }
+
+    .brush-btn {
+      appearance: none;
+      border: 1px solid transparent;
+      background: transparent;
+      color: var(--muted);
+      font-family: var(--mono);
+      font-size: 0.68rem;
+      font-weight: 700;
+      padding: 3px 7px;
+      border-radius: 4px;
+      cursor: pointer;
+    }
+
+    .brush-btn.active {
+      border-color: var(--accent);
+      background: rgba(227, 168, 69, 0.22);
+      color: var(--accent);
+    }
+
+    .sub-bars {
+      display: flex;
+      gap: 2px;
+      height: 100%;
+      width: 100%;
+      padding: 3px;
+      align-items: stretch;
+    }
+
+    .sub-bars span {
+      flex: 1;
+      border-radius: 2px;
+      background: currentColor;
+      opacity: 0.9;
+    }
+
     /* Modals & Footer */
     .modal-backdrop {
       position: fixed;
@@ -814,7 +859,13 @@
       <section class="card">
         <div class="section-head">
           <span>Sequencer 16 Step (4 Tracce Continentali)</span>
-          <div style="display: flex; gap: 6px; flex-wrap: wrap;">
+          <div style="display: flex; gap: 6px; flex-wrap: wrap; align-items: center;">
+            <div id="brush-selector" class="brush-group" title="Suddivisioni per step (ratchet / rulli)">
+              <button type="button" class="brush-btn active" data-brush="1">1×</button>
+              <button type="button" class="brush-btn" data-brush="2">2×</button>
+              <button type="button" class="brush-btn" data-brush="3">3×</button>
+            </div>
+            <button id="btn-memory-toggle" class="btn btn-sm" style="border-color: #38bdf8; color: #38bdf8;" title="Nel 2025/2050 sovrappone in sottofondo i pad del 1990 sui battiti forti">MEMORIA: ON</button>
             <button id="btn-load-preset" class="btn btn-sm" style="border-color: var(--accent); color: var(--accent);">CARICA PRESET ERA</button>
             <button id="btn-clear-pattern" class="btn btn-sm">PULISCI</button>
           </div>
@@ -974,15 +1025,22 @@
       523.25, 587.33
     ];
 
-    // 16-step presets per era: each track [0..3] maps step index -> padId (or null)
-    function makePreset(bpm, tracksSpec) {
+    // 16-step presets per era: each track [0..3] maps step index -> padId (or null), plus ratchet splits
+    function makePreset(bpm, tracksSpec, splitsSpec = []) {
       const tracks = Array.from({ length: 4 }, () => Array(16).fill(null));
+      const splits = Array.from({ length: 4 }, () => Array(16).fill(1));
       tracksSpec.forEach((stepsMap, col) => {
         Object.entries(stepsMap).forEach(([step, padId]) => {
           tracks[col][Number(step)] = padId;
         });
       });
-      return { bpm, tracks };
+      splitsSpec.forEach((spMap, col) => {
+        if (!spMap) return;
+        Object.entries(spMap).forEach(([step, n]) => {
+          splits[col][Number(step)] = n;
+        });
+      });
+      return { bpm, tracks, splits };
     }
 
     const ERA_PRESETS = {
@@ -991,30 +1049,40 @@
         { 0: 1, 6: 1, 12: 1 },
         { 0: 2, 10: 2 },
         { 2: 3, 4: 3, 6: 3, 10: 3, 12: 3, 14: 3 }
+      ], [
+        null, null, null, { 14: 2 }
       ]),
       "1950": makePreset(100, [
         { 0: 4, 3: 4, 6: 4, 8: 4, 11: 4, 14: 4 },
         { 2: 5, 5: 5, 10: 5, 13: 5 },
         { 0: 6, 7: 6, 8: 6, 10: 6 },
         { 2: 7, 4: 7, 6: 7, 10: 7, 12: 7, 14: 7, 15: 7 }
+      ], [
+        null, null, { 10: 2 }, { 6: 2, 15: 2 }
       ]),
       "1990": makePreset(116, [
         { 0: 8, 2: 8, 3: 8, 6: 8, 8: 8, 10: 8, 12: 8, 14: 8 },
         { 0: 9, 3: 9, 6: 9, 10: 9, 12: 9 },
         { 0: 10, 6: 10, 10: 10, 14: 10 },
-        { 0: 11, 2: 11, 4: 11, 6: 11, 8: 11, 10: 11, 12: 11, 14: 11, 15: 11 }
+        { 0: 11, 2: 11, 4: 11, 6: 11, 7: 11, 8: 11, 10: 11, 12: 11, 14: 11, 15: 11 }
+      ], [
+        { 14: 2 }, null, null, { 7: 2, 15: 2 }
       ]),
       "2025": makePreset(128, [
         { 0: 12, 2: 12, 3: 12, 6: 8, 8: 12, 10: 12, 11: 12, 14: 8, 15: 12 },
         { 0: 13, 3: 13, 6: 13, 8: 9, 11: 13, 14: 13 },
         { 0: 14, 4: 14, 8: 14, 11: 14, 12: 14, 14: 14 },
         { 2: 15, 4: 15, 6: 15, 7: 15, 10: 15, 12: 15, 14: 15, 15: 15 }
+      ], [
+        null, { 14: 2 }, { 14: 2 }, { 6: 2, 14: 3, 15: 2 }
       ]),
       "2050": makePreset(140, [
         { 0: 12, 2: 8, 4: 12, 6: 8, 8: 12, 10: 8, 12: 12, 14: 8 },
         { 0: 13, 2: 9, 5: 13, 7: 9, 9: 13, 11: 9, 13: 13, 15: 9 },
         { 0: 14, 3: 14, 6: 10, 10: 14, 12: 14, 14: 14 },
         { 1: 15, 2: 15, 4: 15, 6: 11, 7: 15, 9: 15, 10: 11, 12: 15, 14: 15, 15: 15 }
+      ], [
+        { 14: 2 }, { 15: 2 }, { 14: 2 }, { 2: 2, 7: 3, 10: 2, 15: 3 }
       ])
     };
 
@@ -1034,8 +1102,11 @@
     let isPlaying = false;
     let bpm = 86;
     let musicalScaleOn = true;
+    let historicalLayerOn = true;
+    let splitBrush = 1;
     let vizMode = "waveform";
     const sequenceTracks = Array.from({ length: 4 }, () => Array(16).fill(null));
+    const sequenceSplits = Array.from({ length: 4 }, () => Array(16).fill(1));
 
     // Scheduler look-ahead state
     let currentStep = 0;
@@ -1241,17 +1312,17 @@
       }
     }
 
-    function playKick(d, when, freq, accent = 1) {
+    function playKick(d, when, freq, accent = 1, lenScale = 1) {
       const out = audioCtx.createGain();
       const subTarget = 46 + Math.min(16, (freq - 65) * 0.03);
-      const dur = 0.26 + Math.min(0.30, d.decay_sec * 0.12);
+      const dur = Math.max(0.14, (0.26 + Math.min(0.30, d.decay_sec * 0.12)) * lenScale);
       const peak = (0.48 + d.gain_norm * 0.36) * accent;
 
       // Deep 808 sub body
       const osc = audioCtx.createOscillator();
       osc.type = "sine";
       osc.frequency.setValueAtTime(165 + d.oil_share * 24, when);
-      osc.frequency.exponentialRampToValueAtTime(subTarget, when + 0.055);
+      osc.frequency.exponentialRampToValueAtTime(subTarget, when + Math.min(0.055, dur * 0.4));
       osc.frequency.exponentialRampToValueAtTime(38, when + dur);
 
       out.gain.setValueAtTime(0.0001, when);
@@ -1294,12 +1365,12 @@
       beater.stop(when + 0.02);
     }
 
-    function playBass(d, when, freq, detune, accent = 1) {
+    function playBass(d, when, freq, detune, accent = 1, lenScale = 1) {
       let bassFreq = freq;
       while (bassFreq > 155) bassFreq /= 2;
       while (bassFreq < 48) bassFreq *= 2;
 
-      const dur = Math.min(0.46, 0.17 + d.decay_sec * 0.13);
+      const dur = Math.max(0.09, Math.min(0.46, 0.17 + d.decay_sec * 0.13) * lenScale);
       const peak = (0.25 + d.gain_norm * 0.30) * accent;
 
       const sub = audioCtx.createOscillator();
@@ -1346,18 +1417,18 @@
       oscB.stop(when + dur + 0.03);
     }
 
-    function playPerc(d, when, freq, accent = 1, stepIdx = null) {
+    function playPerc(d, when, freq, accent = 1, stepIdx = null, lenScale = 1) {
       const isBackbeat = stepIdx === null || stepIdx === 4 || stepIdx === 12;
       if (!isBackbeat) {
-        const isOpen = barIndex === 1 && (stepIdx === 14 || stepIdx === 15);
-        const isGhostRim = stepIdx === 7 || stepIdx === 9;
+        const isOpen = barIndex === 1 && (stepIdx === 14 || stepIdx === 15) && lenScale === 1;
+        const isGhostRim = (stepIdx === 7 || stepIdx === 9) && lenScale === 1;
         if (isGhostRim) {
           const rim = audioCtx.createOscillator();
           const rimGain = audioCtx.createGain();
           rim.type = "triangle";
           rim.frequency.setValueAtTime(420, when);
           rim.frequency.exponentialRampToValueAtTime(210, when + 0.025);
-          rimGain.gain.setValueAtTime(0.09 + d.gain_norm * 0.08, when);
+          rimGain.gain.setValueAtTime((0.09 + d.gain_norm * 0.08) * accent, when);
           rimGain.gain.exponentialRampToValueAtTime(0.0001, when + 0.035);
           rim.connect(rimGain);
           routeVoice(rimGain, d.country, d.decay_sec * 0.4, when, 0.14);
@@ -1365,13 +1436,15 @@
           rim.stop(when + 0.04);
           return;
         }
-        const hatDur = isOpen ? 0.14 : 0.042;
-        const hatPeak = (isOpen ? 0.15 : 0.10) + d.gain_norm * 0.10;
+        // Cutoff dell'hi-hat guidato dalla CO2 pro capite (freq_hz_log)
+        const hpFreq = Math.min(10500, Math.max(3200, d.freq_hz_log * 14 + 3200));
+        const hatDur = Math.max(0.028, (isOpen ? 0.14 : 0.042) * lenScale);
+        const hatPeak = ((isOpen ? 0.15 : 0.10) + d.gain_norm * 0.10) * accent;
         const noise = audioCtx.createBufferSource();
         noise.buffer = noiseBuffer;
         const hp = audioCtx.createBiquadFilter();
         hp.type = "highpass";
-        hp.frequency.setValueAtTime(7500, when);
+        hp.frequency.setValueAtTime(hpFreq, when);
         const hOut = audioCtx.createGain();
         hOut.gain.setValueAtTime(0.0001, when);
         hOut.gain.linearRampToValueAtTime(hatPeak, when + 0.002);
@@ -1385,17 +1458,17 @@
       }
 
       // Snare + Clap stratificato sul backbeat (2 & 4)
-      const dur = 0.15 + Math.min(0.14, d.decay_sec * 0.05);
+      const dur = Math.max(0.07, (0.15 + Math.min(0.14, d.decay_sec * 0.05)) * lenScale);
       const peak = (0.28 + d.gain_norm * 0.30) * accent;
       const bodyPitch = 175 + Math.min(95, (freq - 65) * 0.2);
 
       const body = audioCtx.createOscillator();
       body.type = "triangle";
       body.frequency.setValueAtTime(bodyPitch, when);
-      body.frequency.exponentialRampToValueAtTime(bodyPitch * 0.52, when + 0.055);
+      body.frequency.exponentialRampToValueAtTime(bodyPitch * 0.52, when + Math.min(0.055, dur * 0.7));
       const bodyGain = audioCtx.createGain();
       bodyGain.gain.setValueAtTime(peak * 0.6, when);
-      bodyGain.gain.exponentialRampToValueAtTime(0.0001, when + 0.09);
+      bodyGain.gain.exponentialRampToValueAtTime(0.0001, when + Math.min(0.09, dur));
 
       const out = audioCtx.createGain();
       body.connect(bodyGain);
@@ -1427,12 +1500,12 @@
       body.stop(when + 0.11);
     }
 
-    function playSynth(d, when, freq, detune, accent = 1) {
+    function playSynth(d, when, freq, detune, accent = 1, lenScale = 1) {
       let root = freq;
       while (root < 145) root *= 2;
       while (root > 460) root /= 2;
 
-      const dur = Math.min(0.85, 0.24 + d.decay_sec * 0.25);
+      const dur = Math.max(0.11, Math.min(0.85, 0.24 + d.decay_sec * 0.25) * lenScale);
       const peak = (0.15 + d.gain_norm * 0.18) * accent;
       const ratios = musicalScaleOn ? [1, 1.1892, 1.4983] : [1];
       const voiceScale = musicalScaleOn ? 0.45 : 1.0;
@@ -1465,15 +1538,16 @@
       routeVoice(out, d.country, d.decay_sec, when, 0.24);
     }
 
-    function playHat(d, when) {
-      const dur = 0.045 + Math.min(0.11, d.decay_sec * 0.04);
-      const peak = 0.14 + d.gain_norm * 0.20;
+    function playHat(d, when, lenScale = 1, accent = 1) {
+      const hpFreq = Math.min(10500, Math.max(3200, d.freq_hz_log * 14 + 3200));
+      const dur = Math.max(0.025, (0.045 + Math.min(0.11, d.decay_sec * 0.04)) * lenScale);
+      const peak = (0.14 + d.gain_norm * 0.20) * accent;
 
       const noise = audioCtx.createBufferSource();
       noise.buffer = noiseBuffer;
       const hp = audioCtx.createBiquadFilter();
       hp.type = "highpass";
-      hp.frequency.setValueAtTime(6800, when);
+      hp.frequency.setValueAtTime(hpFreq, when);
 
       const out = audioCtx.createGain();
       out.gain.setValueAtTime(0.0001, when);
@@ -1488,7 +1562,7 @@
       noise.stop(when + dur + 0.02);
     }
 
-    function triggerPadSound(padObj, scheduledTime = null, stepIdx = null) {
+    function triggerPadSound(padObj, scheduledTime = null, stepIdx = null, lenScale = 1, velocityScale = 1) {
       if (!audioCtx) initAudioEngine();
       if (audioCtx.state === "suspended") audioCtx.resume();
 
@@ -1498,7 +1572,7 @@
       const inst = columnInstruments[padObj.col];
 
       let freq = quantizeFreq(d.freq_hz_log);
-      let accent = 1.0;
+      let accent = velocityScale;
 
       if (stepIdx !== null && musicalScaleOn && (inst === "bass" || inst === "synth")) {
         const beatSlot = barIndex * 4 + Math.floor(stepIdx / 4);
@@ -1506,19 +1580,19 @@
         let degreeShift = contour[beatSlot] || 0;
         if (inst === "bass" && (stepIdx === 2 || stepIdx === 10 || stepIdx === 14)) {
           degreeShift += 7; // salto d'ottava groovy su sedicesimi di passaggio
-          accent = 0.88;
+          accent *= 0.88;
         }
         freq = shiftScaleDegree(d.freq_hz_log, degreeShift);
       }
       if (stepIdx !== null && (stepIdx === 0 || stepIdx === 4 || stepIdx === 8 || stepIdx === 12)) {
-        accent = 1.12;
+        accent *= 1.12;
       }
 
-      if (inst === "kick") playKick(d, when, freq, accent);
-      else if (inst === "bass") playBass(d, when, freq, detune, accent);
-      else if (inst === "perc") playPerc(d, when, freq, accent, stepIdx);
-      else if (inst === "hat") playHat(d, when);
-      else playSynth(d, when, freq, detune, accent);
+      if (inst === "kick") playKick(d, when, freq, accent, lenScale);
+      else if (inst === "bass") playBass(d, when, freq, detune, accent, lenScale);
+      else if (inst === "perc") playPerc(d, when, freq, accent, stepIdx, lenScale);
+      else if (inst === "hat") playHat(d, when, lenScale, accent);
+      else playSynth(d, when, freq, detune, accent, lenScale);
 
       const delayMs = Math.max(0, (when - audioCtx.currentTime) * 1000);
       setTimeout(() => highlightPadUI(padObj.id), delayMs);
@@ -1622,21 +1696,39 @@
 
         for (let s = 0; s < 16; s++) {
           const padId = sequenceTracks[col][s];
+          const splits = sequenceSplits[col][s] || 1;
           const btn = document.createElement("button");
           btn.id = `seq-step-${col}-${s}`;
           const yr = padId !== null ? PAD_DEFINITIONS[padId].year : null;
           btn.className = `step-btn ${s % 4 === 0 ? "beat-start" : ""} ${yr ? `on-${yr}` : ""}`;
-          btn.textContent = yr ? String(yr).slice(-2) : "";
+          if (yr) {
+            if (splits > 1) {
+              btn.innerHTML = `<span class="sub-bars">${"<span></span>".repeat(splits)}</span>`;
+            } else {
+              btn.textContent = String(yr).slice(-2);
+            }
+          }
           btn.setAttribute("aria-label", `${REGION_IT[r]}, step ${s + 1}`);
+          btn.title = yr ? `${yr} · ${splits}×` : "";
 
           btn.addEventListener("click", () => {
-            if (sequenceTracks[col][s] === null) {
-              const targetRow = ERA_YEAR_ROW[currentDecade];
-              const newPadId = targetRow * 4 + col;
-              sequenceTracks[col][s] = newPadId;
-              triggerPadSound(PAD_DEFINITIONS[newPadId]);
+            const targetRow = ERA_YEAR_ROW[currentDecade];
+            const newPadId = targetRow * 4 + col;
+            if (sequenceTracks[col][s] === null || sequenceSplits[col][s] !== splitBrush) {
+              if (sequenceTracks[col][s] === null) sequenceTracks[col][s] = newPadId;
+              sequenceSplits[col][s] = splitBrush;
+              const activePad = PAD_DEFINITIONS[sequenceTracks[col][s]];
+              if (!audioCtx) initAudioEngine();
+              if (audioCtx.state === "suspended") audioCtx.resume();
+              const stepDur = stepDurationSec(s);
+              const lenScale = splitBrush === 1 ? 1.0 : splitBrush === 2 ? 0.62 : 0.44;
+              for (let k = 0; k < splitBrush; k++) {
+                const subVel = splitBrush === 1 ? 1.0 : 0.72 + (k / (splitBrush - 1)) * 0.28;
+                triggerPadSound(activePad, audioCtx.currentTime + (k * stepDur) / splitBrush, s, lenScale, subVel);
+              }
             } else {
               sequenceTracks[col][s] = null;
+              sequenceSplits[col][s] = 1;
             }
             renderSequencerGrid();
           });
@@ -1651,6 +1743,7 @@
       for (let col = 0; col < 4; col++) {
         for (let s = 0; s < 16; s++) {
           sequenceTracks[col][s] = p.tracks[col][s];
+          sequenceSplits[col][s] = p.splits[col][s] || 1;
         }
       }
       bpm = p.bpm;
@@ -1701,10 +1794,21 @@
     }
 
     function scheduleStep(stepIdx, when) {
+      const stepDur = stepDurationSec(stepIdx);
       for (let col = 0; col < 4; col++) {
         const padId = sequenceTracks[col][stepIdx];
         if (padId !== null) {
-          triggerPadSound(PAD_DEFINITIONS[padId], when, stepIdx);
+          const splits = sequenceSplits[col][stepIdx] || 1;
+          const lenScale = splits === 1 ? 1.0 : splits === 2 ? 0.62 : 0.44;
+          for (let k = 0; k < splits; k++) {
+            const hitTime = when + (k * stepDur) / splits;
+            const subVel = splits === 1 ? 1.0 : 0.72 + (k / (splits - 1)) * 0.28;
+            triggerPadSound(PAD_DEFINITIONS[padId], hitTime, stepIdx, lenScale, subVel);
+          }
+          // Strato memoria storica: nel 2025/2050 i pad del 1990 risuonano sotto i battiti forti
+          if (historicalLayerOn && (currentDecade === "2025" || currentDecade === "2050") && padId >= 12 && (stepIdx === 0 || stepIdx === 8)) {
+            triggerPadSound(PAD_DEFINITIONS[padId - 4], when + 0.008, stepIdx, 0.85, 0.38);
+          }
         }
       }
 
@@ -2241,8 +2345,27 @@
       document.getElementById("btn-play-story").addEventListener("click", startStory);
       document.getElementById("btn-load-preset").addEventListener("click", () => loadEraPreset(currentDecade));
       document.getElementById("btn-clear-pattern").addEventListener("click", () => {
-        for (let col = 0; col < 4; col++) sequenceTracks[col].fill(null);
+        for (let col = 0; col < 4; col++) {
+          sequenceTracks[col].fill(null);
+          sequenceSplits[col].fill(1);
+        }
         renderSequencerGrid();
+      });
+
+      document.getElementById("brush-selector").addEventListener("click", (e) => {
+        const btn = e.target.closest(".brush-btn");
+        if (!btn) return;
+        splitBrush = Number(btn.dataset.brush) || 1;
+        document.querySelectorAll(".brush-btn").forEach(b => {
+          b.classList.toggle("active", Number(b.dataset.brush) === splitBrush);
+        });
+      });
+
+      document.getElementById("btn-memory-toggle").addEventListener("click", (e) => {
+        historicalLayerOn = !historicalLayerOn;
+        e.target.textContent = historicalLayerOn ? "MEMORIA: ON" : "MEMORIA: OFF";
+        e.target.style.borderColor = historicalLayerOn ? "#38bdf8" : "var(--border)";
+        e.target.style.color = historicalLayerOn ? "#38bdf8" : "var(--muted)";
       });
 
       document.getElementById("input-bpm").addEventListener("change", (e) => {
