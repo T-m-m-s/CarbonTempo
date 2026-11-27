@@ -1,0 +1,2326 @@
+<!DOCTYPE html>
+<html lang="it">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Climate Data Sampler — OWID CO₂ Data Art</title>
+  <style>
+    :root {
+      --bg-top: rgb(8, 24, 48);
+      --bg-bottom: rgb(14, 52, 82);
+      --bg-glow: rgb(56, 189, 248);
+      --pulse: 0;
+      --surface: rgba(24, 20, 17, 0.88);
+      --surface-solid: #1b1714;
+      --surface-2: #26201b;
+      --surface-3: #332b24;
+      --border: #4a3c2f;
+      --text: #f3ead8;
+      --muted: #b5a48b;
+      --dim: #7c6d58;
+      --accent: #e3a845;
+      --accent-2: #38bdf8;
+      --danger: #ef4444;
+      --ok: #34d399;
+      --sans: system-ui, -apple-system, "Segoe UI", Roboto, Ubuntu, sans-serif;
+      --mono: ui-monospace, "Cascadia Mono", "SFMono-Regular", Menlo, Consolas, monospace;
+    }
+
+    *, *::before, *::after { box-sizing: border-box; }
+
+    html, body {
+      margin: 0;
+      padding: 0;
+      min-height: 100vh;
+      background: #14110f;
+      color: var(--text);
+      font-family: var(--sans);
+      -webkit-font-smoothing: antialiased;
+    }
+
+    body {
+      display: flex;
+      flex-direction: column;
+      padding: 16px;
+      gap: 16px;
+      position: relative;
+      overflow-x: hidden;
+    }
+
+    #climate-bg {
+      position: fixed;
+      inset: 0;
+      z-index: 0;
+      pointer-events: none;
+      background:
+        radial-gradient(120% 70% at 50% 108%, var(--bg-glow) -25%, transparent 62%),
+        linear-gradient(180deg, var(--bg-top) 0%, var(--bg-bottom) 100%);
+      transition: filter 0.6s ease;
+    }
+
+    #climate-bg::after {
+      content: "";
+      position: absolute;
+      inset: 0;
+      mix-blend-mode: screen;
+      opacity: var(--pulse);
+      background: radial-gradient(90% 55% at 50% 112%, var(--bg-glow), transparent 70%);
+    }
+
+    .shell {
+      position: relative;
+      z-index: 1;
+      width: 100%;
+      max-width: 1320px;
+      margin: 0 auto;
+    }
+
+    .card {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      padding: 14px 16px;
+      box-shadow: 0 8px 24px rgba(0, 0, 0, 0.4);
+      backdrop-filter: blur(8px);
+    }
+
+    /* Header */
+    header.shell {
+      display: flex;
+      flex-wrap: wrap;
+      justify-content: space-between;
+      align-items: center;
+      gap: 14px;
+      padding-bottom: 12px;
+      border-bottom: 1px solid var(--border);
+    }
+
+    .brand {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+    }
+
+    .brand-icon {
+      width: 44px;
+      height: 44px;
+      border-radius: 8px;
+      background: linear-gradient(135deg, #c8872e, #7c4d14);
+      border: 1px solid #eab354;
+      display: grid;
+      place-items: center;
+      font-family: var(--mono);
+      font-weight: 800;
+      font-size: 20px;
+      color: #fff8ea;
+      box-shadow: 0 3px 10px rgba(0, 0, 0, 0.45);
+    }
+
+    .brand h1 {
+      margin: 0;
+      font-size: 1.35rem;
+      letter-spacing: 0.04em;
+      font-weight: 800;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      flex-wrap: wrap;
+    }
+
+    .badge {
+      font-family: var(--mono);
+      font-size: 0.7rem;
+      padding: 2px 7px;
+      border-radius: 4px;
+      background: #2f2314;
+      color: var(--accent);
+      border: 1px solid #755322;
+      font-weight: 700;
+    }
+
+    .subtitle {
+      margin: 3px 0 0;
+      font-size: 0.78rem;
+      color: var(--muted);
+      font-family: var(--mono);
+    }
+
+    .stats-bar {
+      display: flex;
+      align-items: center;
+      gap: 16px;
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      padding: 8px 14px;
+      font-family: var(--mono);
+      font-size: 0.75rem;
+    }
+
+    .stat-label {
+      display: block;
+      font-size: 0.64rem;
+      color: var(--dim);
+      letter-spacing: 0.05em;
+    }
+
+    .stat-val {
+      font-size: 0.92rem;
+      font-weight: 700;
+      color: var(--accent);
+    }
+
+    .stat-sep {
+      width: 1px;
+      height: 28px;
+      background: var(--border);
+    }
+
+    /* Main Grid */
+    main.shell {
+      display: grid;
+      grid-template-columns: 370px minmax(0, 1fr);
+      gap: 16px;
+      align-items: start;
+      flex: 1;
+    }
+
+    @media (max-width: 1020px) {
+      main.shell { grid-template-columns: 1fr; }
+    }
+
+    .col-stack {
+      display: flex;
+      flex-direction: column;
+      gap: 14px;
+    }
+
+    .section-head {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 10px;
+      font-family: var(--mono);
+      font-size: 0.74rem;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 0.06em;
+      color: var(--muted);
+    }
+
+    /* Era Buttons */
+    .era-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 8px;
+    }
+
+    .era-btn {
+      appearance: none;
+      text-align: left;
+      background: var(--surface-2);
+      border: 1px solid var(--border);
+      border-radius: 7px;
+      padding: 9px 10px;
+      cursor: pointer;
+      color: var(--text);
+      transition: border-color 0.15s, background 0.15s, transform 0.08s;
+    }
+
+    .era-btn:hover {
+      border-color: var(--accent);
+      background: var(--surface-3);
+    }
+
+    .era-btn.active {
+      border-color: var(--accent);
+      background: linear-gradient(135deg, rgba(227, 168, 69, 0.22), rgba(38, 32, 27, 0.95));
+      box-shadow: inset 0 0 0 1px rgba(227, 168, 69, 0.35);
+    }
+
+    .era-btn.wide { grid-column: span 2; }
+
+    .era-title {
+      font-family: var(--mono);
+      font-weight: 700;
+      font-size: 0.82rem;
+      color: var(--accent);
+    }
+
+    .era-sub {
+      font-size: 0.7rem;
+      color: var(--muted);
+      margin-top: 2px;
+    }
+
+    /* Visualizer */
+    .viz-box {
+      position: relative;
+      width: 100%;
+      height: 155px;
+      background: #0f0d0b;
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      overflow: hidden;
+    }
+
+    .viz-box canvas {
+      position: absolute;
+      inset: 0;
+      width: 100%;
+      height: 100%;
+    }
+
+    .sliders-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 12px;
+      margin-top: 12px;
+      font-family: var(--mono);
+      font-size: 0.72rem;
+    }
+
+    .slider-label {
+      display: flex;
+      justify-content: space-between;
+      color: var(--muted);
+      margin-bottom: 4px;
+    }
+
+    .slider-label span:last-child { color: var(--accent); font-weight: 700; }
+
+    input[type="range"] {
+      width: 100%;
+      accent-color: var(--accent);
+      cursor: pointer;
+    }
+
+    /* Thermometer */
+    .thermo-bar {
+      position: relative;
+      height: 8px;
+      border-radius: 999px;
+      background: linear-gradient(90deg, #0a3454, #7c4d6b 20%, #c22f33 52%, #f59e0b);
+      margin: 6px 0 4px;
+    }
+
+    #temp-marker {
+      position: absolute;
+      top: -4px;
+      width: 6px;
+      height: 16px;
+      border-radius: 2px;
+      background: #fff;
+      box-shadow: 0 0 8px rgba(255, 255, 255, 0.85);
+      transform: translateX(-50%);
+      transition: left 0.6s cubic-bezier(0.2, 0.8, 0.2, 1);
+    }
+
+    /* Buttons & Inputs */
+    .btn {
+      appearance: none;
+      border: 1px solid var(--border);
+      background: var(--surface-2);
+      color: var(--text);
+      font-family: var(--mono);
+      font-size: 0.75rem;
+      font-weight: 700;
+      padding: 8px 12px;
+      border-radius: 7px;
+      cursor: pointer;
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      transition: filter 0.12s, background 0.12s, transform 0.08s;
+    }
+
+    .btn:hover { background: var(--surface-3); }
+    .btn:active { transform: translateY(1px); }
+
+    .btn-sm { padding: 4px 9px; font-size: 0.68rem; }
+
+    .btn-play {
+      background: linear-gradient(135deg, #2e7d5b, #1d5940);
+      border-color: #45a87d;
+      color: #fff;
+    }
+
+    .btn-play.playing {
+      background: linear-gradient(135deg, #c2552b, #8f2d1b);
+      border-color: #ef7748;
+    }
+
+    .btn-story {
+      background: linear-gradient(135deg, #c8872e, #8a5614);
+      border-color: #eab354;
+      color: #fff;
+    }
+
+    .btn-story.active {
+      background: linear-gradient(135deg, #0284c7, #0369a1);
+      border-color: #38bdf8;
+    }
+
+    .btn-art {
+      background: linear-gradient(135deg, #9d3b66, #c86b2e);
+      border-color: #e2876b;
+      color: #fff;
+    }
+
+    .transport {
+      display: flex;
+      flex-wrap: wrap;
+      align-items: center;
+      justify-content: space-between;
+      gap: 10px;
+    }
+
+    .transport-group {
+      display: flex;
+      flex-wrap: wrap;
+      align-items: center;
+      gap: 8px;
+    }
+
+    .bpm-box {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      font-family: var(--mono);
+      font-size: 0.74rem;
+      color: var(--muted);
+    }
+
+    #input-bpm {
+      width: 58px;
+      background: #100d0b;
+      border: 1px solid var(--border);
+      color: var(--accent);
+      font-family: var(--mono);
+      font-weight: 700;
+      font-size: 0.82rem;
+      border-radius: 5px;
+      padding: 5px 6px;
+      text-align: center;
+    }
+
+    /* Column Instrument Headers + 4x4 Pad Matrix */
+    .pad-headers {
+      display: grid;
+      grid-template-columns: repeat(4, minmax(0, 1fr));
+      gap: 10px;
+      margin-bottom: 10px;
+    }
+
+    .col-header {
+      background: var(--surface-2);
+      border: 1px solid var(--border);
+      border-radius: 7px;
+      padding: 7px 8px;
+      display: flex;
+      flex-direction: column;
+      gap: 5px;
+    }
+
+    .col-name {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      font-family: var(--mono);
+      font-size: 0.72rem;
+      font-weight: 700;
+      color: var(--text);
+    }
+
+    .col-pan {
+      font-size: 0.62rem;
+      color: var(--dim);
+    }
+
+    .inst-select {
+      width: 100%;
+      background: #100d0b;
+      color: var(--accent);
+      border: 1px solid var(--border);
+      border-radius: 5px;
+      padding: 4px 6px;
+      font-family: var(--mono);
+      font-size: 0.7rem;
+      font-weight: 700;
+      cursor: pointer;
+    }
+
+    #mpc-grid {
+      display: grid;
+      grid-template-columns: repeat(4, minmax(0, 1fr));
+      gap: 10px;
+    }
+
+    .mpc-pad {
+      position: relative;
+      min-height: 104px;
+      border-radius: 8px;
+      background: linear-gradient(155deg, #3c3024, #201913);
+      border: 2px solid #120e0a;
+      box-shadow: 0 4px 0 #0b0805, inset 0 1px 0 rgba(255, 232, 195, 0.14);
+      padding: 9px 10px;
+      display: flex;
+      flex-direction: column;
+      justify-content: space-between;
+      cursor: pointer;
+      user-select: none;
+      transition: transform 0.06s ease, box-shadow 0.08s ease, border-color 0.12s;
+    }
+
+    .mpc-pad:hover { border-color: #7d6243; }
+
+    .mpc-pad.era-row {
+      border-color: rgba(227, 168, 69, 0.55);
+    }
+
+    .mpc-pad.active {
+      transform: translateY(2px);
+      box-shadow: 0 1px 0 #0b0805, 0 0 22px var(--pad-glow, var(--accent)), inset 0 0 14px rgba(255, 240, 210, 0.35);
+    }
+
+    .pad-top {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+    }
+
+    .pad-key {
+      font-family: var(--mono);
+      font-size: 0.7rem;
+      font-weight: 800;
+      color: var(--accent);
+      background: rgba(12, 10, 8, 0.78);
+      border: 1px solid var(--border);
+      padding: 1px 6px;
+      border-radius: 4px;
+    }
+
+    .pad-led {
+      width: 8px;
+      height: 8px;
+      border-radius: 50%;
+      background: #3a3026;
+      transition: background 0.08s, box-shadow 0.08s;
+    }
+
+    .mpc-pad.active .pad-led {
+      background: #fff;
+      box-shadow: 0 0 10px #fff;
+    }
+
+    .pad-center {
+      text-align: center;
+      margin: 4px 0;
+    }
+
+    .pad-title {
+      font-weight: 700;
+      font-size: 0.82rem;
+      color: var(--text);
+    }
+
+    .pad-metric {
+      font-family: var(--mono);
+      font-size: 0.65rem;
+      color: var(--muted);
+      margin-top: 2px;
+    }
+
+    .pad-foot {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      font-family: var(--mono);
+      font-size: 0.62rem;
+      color: var(--dim);
+      gap: 4px;
+    }
+
+    .fuel-bar {
+      flex: 1;
+      height: 4px;
+      border-radius: 2px;
+      overflow: hidden;
+      display: flex;
+      background: #14100c;
+    }
+
+    /* 16-Step Sequencer */
+    .seq-grid {
+      display: grid;
+      grid-template-columns: 120px repeat(16, minmax(0, 1fr));
+      gap: 4px;
+      align-items: center;
+    }
+
+    @media (max-width: 720px) {
+      .pad-headers, #mpc-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+      .seq-grid { overflow-x: auto; min-width: 600px; }
+    }
+
+    .step-led {
+      height: 6px;
+      border-radius: 3px;
+      background: #2b221a;
+      transition: background 0.08s, box-shadow 0.08s;
+    }
+
+    .step-led.active-step {
+      background: var(--accent);
+      box-shadow: 0 0 8px var(--accent);
+    }
+
+    .seq-track-label {
+      font-family: var(--mono);
+      font-size: 0.68rem;
+      color: var(--muted);
+      display: flex;
+      flex-direction: column;
+      line-height: 1.2;
+      padding-right: 4px;
+    }
+
+    .seq-track-label strong { color: var(--text); font-size: 0.72rem; }
+
+    .step-btn {
+      appearance: none;
+      height: 26px;
+      border-radius: 4px;
+      border: 1px solid #3c3024;
+      background: #171310;
+      color: transparent;
+      font-family: var(--mono);
+      font-size: 0.6rem;
+      font-weight: 800;
+      cursor: pointer;
+      padding: 0;
+      transition: background 0.1s, border-color 0.1s;
+    }
+
+    .step-btn.beat-start { border-left: 2px solid #6b563f; }
+    .step-btn:hover { border-color: var(--accent); }
+
+    .step-btn.on-1900 { background: #1e4d6b; border-color: #38bdf8; color: #e0f2fe; }
+    .step-btn.on-1950 { background: #7a5216; border-color: #fbbf24; color: #fef3c7; }
+    .step-btn.on-1990 { background: #8c2d3e; border-color: #fb7185; color: #ffe4e6; }
+    .step-btn.on-2025 { background: #9b3019; border-color: #f97316; color: #ffedd5; }
+
+    /* Modals & Footer */
+    .modal-backdrop {
+      position: fixed;
+      inset: 0;
+      z-index: 50;
+      background: rgba(10, 8, 6, 0.85);
+      backdrop-filter: blur(4px);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      padding: 16px;
+    }
+
+    .modal-backdrop.hidden { display: none; }
+
+    .modal-card {
+      background: var(--surface-solid);
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      padding: 18px;
+      width: 100%;
+      max-width: 540px;
+      box-shadow: 0 16px 40px rgba(0, 0, 0, 0.65);
+      display: flex;
+      flex-direction: column;
+      gap: 12px;
+    }
+
+    .keymap-grid {
+      display: grid;
+      grid-template-columns: repeat(4, 1fr);
+      gap: 8px;
+      font-family: var(--mono);
+      text-align: center;
+    }
+
+    .keymap-cell {
+      background: #100d0b;
+      border: 1px solid var(--border);
+      border-radius: 5px;
+      padding: 8px;
+      font-weight: 800;
+      color: var(--accent);
+    }
+
+    footer.shell {
+      display: flex;
+      flex-wrap: wrap;
+      justify-content: space-between;
+      gap: 8px;
+      padding-top: 10px;
+      border-top: 1px solid var(--border);
+      font-size: 0.72rem;
+      color: var(--dim);
+      font-family: var(--mono);
+    }
+
+    footer a { color: var(--muted); }
+  </style>
+</head>
+<body>
+  <div id="climate-bg" aria-hidden="true"></div>
+
+  <header class="shell">
+    <div class="brand">
+      <div class="brand-icon" aria-hidden="true">CO₂</div>
+      <div>
+        <h1>CLIMATE DATA SAMPLER <span class="badge">16-STEP · 4 STRUMENTI</span></h1>
+        <p class="subtitle">Our World in Data CO₂ (1900–2025) · Righe = Epoche · Colonne = Continenti</p>
+      </div>
+    </div>
+
+    <div class="stats-bar">
+      <div>
+        <span class="stat-label">EMISSIONI GLOBALI</span>
+        <span id="header-co2" class="stat-val">1.967 Mt</span>
+      </div>
+      <div class="stat-sep"></div>
+      <div>
+        <span class="stat-label">ANOMALIA TERMICA (RIF.)</span>
+        <span id="header-temp" class="stat-val">+0.05 °C</span>
+      </div>
+      <div class="stat-sep"></div>
+      <div>
+        <span class="stat-label">MOTORE AUDIO</span>
+        <span id="audio-status" class="stat-val" style="color: var(--ok);">PRONTO</span>
+      </div>
+    </div>
+  </header>
+
+  <main class="shell">
+    <!-- Left Column -->
+    <div class="col-stack">
+      <section class="card">
+        <div class="section-head">
+          <span>Seleziona Epoca / Preset</span>
+          <span id="decade-indicator-badge" style="color: var(--accent);">1900</span>
+        </div>
+        <div class="era-grid" id="decade-selector-grid">
+          <button data-decade="1900" class="era-btn active">
+            <div class="era-title">1900</div>
+            <div class="era-sub">Carbone · Groove essenziale</div>
+          </button>
+          <button data-decade="1950" class="era-btn">
+            <div class="era-title">1950</div>
+            <div class="era-sub">Dopoguerra · Boom &amp; Swing</div>
+          </button>
+          <button data-decade="1990" class="era-btn">
+            <div class="era-title">1990</div>
+            <div class="era-sub">Trattati · Breakbeat '90</div>
+          </button>
+          <button data-decade="2025" class="era-btn">
+            <div class="era-title">2025</div>
+            <div class="era-sub">Picco storico · Elettronica densa</div>
+          </button>
+          <button data-decade="2050" class="era-btn wide">
+            <div class="era-title">2050 · Proiezione (+2.5 °C)</div>
+            <div class="era-sub">Scenario non misurato · Tensione massima &amp; accumulo</div>
+          </button>
+        </div>
+      </section>
+
+      <section class="card">
+        <div class="section-head">
+          <span>Spettro Sonoro &amp; Curva OWID</span>
+          <button id="btn-viz-toggle" class="btn btn-sm">MODO: ONDA</button>
+        </div>
+        <div class="viz-box">
+          <canvas id="chart-overlay-canvas"></canvas>
+          <canvas id="audio-canvas"></canvas>
+        </div>
+        <div class="sliders-grid">
+          <div>
+            <div class="slider-label">
+              <span>SATURAZIONE CALDA</span>
+              <span id="label-drive">8%</span>
+            </div>
+            <input id="slider-drive" type="range" min="0" max="100" value="8">
+          </div>
+          <div>
+            <div class="slider-label">
+              <span>FILTRO PASSA-BASSO</span>
+              <span id="label-filter">9.5 kHz</span>
+            </div>
+            <input id="slider-filter" type="range" min="400" max="12000" step="100" value="9500">
+          </div>
+        </div>
+      </section>
+
+      <section class="card">
+        <div class="section-head">
+          <span>Contesto Climatico dell'Epoca</span>
+          <span id="era-pc-badge" style="color: var(--accent);">1.21 t/persona</span>
+        </div>
+        <p id="era-description" style="margin: 0 0 10px; font-size: 0.82rem; line-height: 1.48; color: var(--text);"></p>
+        <div style="font-family: var(--mono); font-size: 0.68rem; color: var(--muted); display: flex; justify-content: space-between;">
+          <span>0 °C</span>
+          <span>Riscaldamento medio globale</span>
+          <span>+2.5 °C</span>
+        </div>
+        <div class="thermo-bar">
+          <div id="temp-marker" style="left: 2%;"></div>
+        </div>
+        <div style="margin-top: 10px; padding-top: 10px; border-top: 1px solid var(--border); font-family: var(--mono); font-size: 0.72rem; color: var(--muted);">
+          <div>Mix mondiale: <strong id="era-fuel-share" style="color: var(--text);"></strong></div>
+          <div style="margin-top: 4px; color: var(--dim); font-size: 0.66rem;">
+            Altezza = CO₂/ab · Volume = CO₂ tot · Riverbero = CO₂ cumulativa
+          </div>
+        </div>
+      </section>
+    </div>
+
+    <!-- Right Column -->
+    <div class="col-stack">
+      <section class="card transport">
+        <div class="transport-group">
+          <button id="btn-play-seq" class="btn btn-play">▶ AVVIA LOOP</button>
+          <button id="btn-play-story" class="btn btn-story">▶ PLAY STORIA (1900→2050)</button>
+          <button id="btn-artwork" class="btn btn-art">◉ INCIDI VINILE</button>
+        </div>
+
+        <div class="transport-group">
+          <label class="bpm-box">
+            <span>BPM</span>
+            <input id="input-bpm" type="number" min="60" max="175" value="86">
+          </label>
+          <button id="btn-scale-toggle" class="btn btn-sm" title="Quantizza le frequenze dei pad sulla scala di Do minore">SCALA: DO MINORE</button>
+          <button id="btn-help-modal" class="btn btn-sm">⌨ TASTI</button>
+        </div>
+      </section>
+
+      <section class="card">
+        <div class="section-head">
+          <span>Matrice 4×4 Continenti × Anni (scegli lo strumento per colonna)</span>
+          <span id="story-status" style="color: var(--accent);"></span>
+        </div>
+
+        <div id="column-headers" class="pad-headers"></div>
+        <div id="mpc-grid"></div>
+      </section>
+
+      <section class="card">
+        <div class="section-head">
+          <span>Sequencer 16 Step (4 Tracce Continentali)</span>
+          <div style="display: flex; gap: 6px; flex-wrap: wrap;">
+            <button id="btn-load-preset" class="btn btn-sm" style="border-color: var(--accent); color: var(--accent);">CARICA PRESET ERA</button>
+            <button id="btn-clear-pattern" class="btn btn-sm">PULISCI</button>
+          </div>
+        </div>
+        <div style="overflow-x: auto;">
+          <div id="sequencer-steps-grid" class="seq-grid"></div>
+        </div>
+      </section>
+    </div>
+  </main>
+
+  <footer class="shell">
+    <div>
+      Dati CO₂: <a href="https://github.com/owid/co2-data" target="_blank" rel="noopener">Our World in Data (1750–2025)</a> · Anomalie termiche indicative (riferimento NASA GISTEMP / HadCRUT) · 2050 = scenario proiettivo
+    </div>
+    <div>
+      Web Audio API offline · Limiter master + Riverbero cumulativo + Panning stereo
+    </div>
+  </footer>
+
+  <!-- Keymap Modal -->
+  <div id="keymap-modal" class="modal-backdrop hidden">
+    <div class="modal-card" style="max-width: 420px;">
+      <div class="section-head" style="margin-bottom: 0;">
+        <span>Scorciatoie da Tastiera</span>
+        <button id="btn-close-modal" class="btn btn-sm">✕</button>
+      </div>
+      <p style="margin: 0; font-size: 0.8rem; color: var(--muted); line-height: 1.45;">
+        Suona i 16 pad dal vivo con la tastiera (righe = anni 1900→2025, colonne = continenti). Premi <strong>Spazio</strong> per avviare o fermare il loop.
+      </p>
+      <div class="keymap-grid">
+        <div class="keymap-cell">1</div><div class="keymap-cell">2</div><div class="keymap-cell">3</div><div class="keymap-cell">4</div>
+        <div class="keymap-cell">Q</div><div class="keymap-cell">W</div><div class="keymap-cell">E</div><div class="keymap-cell">R</div>
+        <div class="keymap-cell">A</div><div class="keymap-cell">S</div><div class="keymap-cell">D</div><div class="keymap-cell">F</div>
+        <div class="keymap-cell">Z</div><div class="keymap-cell">X</div><div class="keymap-cell">C</div><div class="keymap-cell">V</div>
+      </div>
+      <button id="btn-modal-gotit" class="btn btn-story" style="justify-content: center;">HO CAPITO, SUONIAMO</button>
+    </div>
+  </div>
+
+  <!-- Visual Artwork Modal -->
+  <div id="art-modal" class="modal-backdrop hidden">
+    <div class="modal-card">
+      <div class="section-head" style="margin-bottom: 0;">
+        <span>Vinile Inciso dal Loop</span>
+        <button id="btn-art-close" class="btn btn-sm">✕</button>
+      </div>
+      <canvas id="art-canvas" style="width: 100%; aspect-ratio: 1; border-radius: 8px; border: 1px solid var(--border);"></canvas>
+      <p id="art-msg" style="margin: 0; font-family: var(--mono); font-size: 0.74rem; color: var(--muted); line-height: 1.45;"></p>
+      <div style="display: flex; gap: 8px; justify-content: flex-end;">
+        <button id="btn-art-again" class="btn">Registra di nuovo</button>
+        <button id="btn-art-save" class="btn btn-story">Salva PNG</button>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    // --- 1. DATI REALI OWID (coincidono con sampler_data.json & owid_co2.csv) ---
+    const SAMPLER_DATA_FALLBACK = [
+      { country: "Europe", year: 1900, co2: 1209.566, co2_per_capita: 3.008, cumulative_co2: 33296.828, dominant_fuel: "coal", coal_share: 0.972, oil_share: 0.028, gas_share: 0.0, freq_hz: 175.5, freq_hz_log: 103.7, gain_norm: 0.381, decay_sec: 0.36 },
+      { country: "Europe", year: 1950, co2: 2376.51, co2_per_capita: 4.328, cumulative_co2: 115961.781, dominant_fuel: "coal", coal_share: 0.877, oil_share: 0.114, gas_share: 0.009, freq_hz: 224.0, freq_hz_log: 127.2, gain_norm: 0.454, decay_sec: 0.64 },
+      { country: "Europe", year: 1990, co2: 8051.915, co2_per_capita: 11.112, cumulative_co2: 346284.312, dominant_fuel: "coal", coal_share: 0.39, oil_share: 0.383, gas_share: 0.226, freq_hz: 473.1, freq_hz_log: 364.6, gain_norm: 0.668, decay_sec: 1.42 },
+      { country: "Europe", year: 2025, co2: 4844.096, co2_per_capita: 6.499, cumulative_co2: 556620.625, dominant_fuel: "oil", coal_share: 0.204, oil_share: 0.421, gas_share: 0.375, freq_hz: 303.7, freq_hz_log: 178.2, gain_norm: 0.563, decay_sec: 2.14 },
+      { country: "North America", year: 1900, co2: 689.307, co2_per_capita: 6.68, cumulative_co2: 11017.021, dominant_fuel: "coal", coal_share: 0.947, oil_share: 0.036, gas_share: 0.017, freq_hz: 310.3, freq_hz_log: 183.3, gain_norm: 0.337, decay_sec: 0.29 },
+      { country: "North America", year: 1950, co2: 2747.712, co2_per_capita: 12.458, cumulative_co2: 98348.586, dominant_fuel: "coal", coal_share: 0.507, oil_share: 0.371, gas_share: 0.122, freq_hz: 522.6, freq_hz_log: 449.3, gain_norm: 0.473, decay_sec: 0.58 },
+      { country: "North America", year: 1990, co2: 6000.515, co2_per_capita: 14.158, cumulative_co2: 274317.938, dominant_fuel: "oil", coal_share: 0.33, oil_share: 0.463, gas_share: 0.207, freq_hz: 585.0, freq_hz_log: 585.0, gain_norm: 0.604, decay_sec: 1.18 },
+      { country: "North America", year: 2025, co2: 6240.703, co2_per_capita: 10.166, cumulative_co2: 506290.906, dominant_fuel: "oil", coal_share: 0.138, oil_share: 0.48, gas_share: 0.382, freq_hz: 438.4, freq_hz_log: 314.8, gain_norm: 0.612, decay_sec: 1.97 },
+      { country: "Asia", year: 1900, co2: 43.98, co2_per_capita: 0.047, cumulative_co2: 419.582, dominant_fuel: "coal", coal_share: 0.827, oil_share: 0.173, gas_share: 0.0, freq_hz: 66.7, freq_hz_log: 65.5, gain_norm: 0.235, decay_sec: 0.25 },
+      { country: "Asia", year: 1950, co2: 396.917, co2_per_capita: 0.29, cumulative_co2: 12348.505, dominant_fuel: "coal", coal_share: 0.781, oil_share: 0.204, gas_share: 0.014, freq_hz: 75.7, freq_hz_log: 68.0, gain_norm: 0.304, decay_sec: 0.29 },
+      { country: "Asia", year: 1990, co2: 6598.799, co2_per_capita: 2.056, cumulative_co2: 129991.914, dominant_fuel: "coal", coal_share: 0.525, oil_share: 0.375, gas_share: 0.1, freq_hz: 140.5, freq_hz_log: 89.4, gain_norm: 0.623, decay_sec: 0.69 },
+      { country: "Asia", year: 2025, co2: 23572.43, co2_per_capita: 4.876, cumulative_co2: 649039.625, dominant_fuel: "coal", coal_share: 0.602, oil_share: 0.242, gas_share: 0.156, freq_hz: 244.1, freq_hz_log: 138.5, gain_norm: 1.0, decay_sec: 2.45 },
+      { country: "Africa", year: 1900, co2: 2.33, co2_per_capita: 0.017, cumulative_co2: 31.943, dominant_fuel: "coal", coal_share: 1.0, oil_share: 0.0, gas_share: 0.0, freq_hz: 65.6, freq_hz_log: 65.2, gain_norm: 0.208, decay_sec: 0.25 },
+      { country: "Africa", year: 1950, co2: 93.342, co2_per_capita: 0.41, cumulative_co2: 1737.115, dominant_fuel: "coal", coal_share: 0.754, oil_share: 0.246, gas_share: 0.0, freq_hz: 80.1, freq_hz_log: 69.3, gain_norm: 0.25, decay_sec: 0.26 },
+      { country: "Africa", year: 1990, co2: 660.986, co2_per_capita: 1.027, cumulative_co2: 15704.417, dominant_fuel: "coal", coal_share: 0.476, oil_share: 0.402, gas_share: 0.123, freq_hz: 102.7, freq_hz_log: 76.2, gain_norm: 0.334, decay_sec: 0.3 },
+      { country: "Africa", year: 2025, co2: 1558.322, co2_per_capita: 1.007, cumulative_co2: 55786.203, dominant_fuel: "oil", coal_share: 0.325, oil_share: 0.444, gas_share: 0.23, freq_hz: 102.0, freq_hz_log: 76.0, gain_norm: 0.406, decay_sec: 0.44 }
+    ];
+
+    const WORLD_CURVE = [
+      { year: 1900, co2: 1966.8 }, { year: 1910, co2: 3057.0 }, { year: 1920, co2: 3551.8 },
+      { year: 1930, co2: 3963.9 }, { year: 1940, co2: 4898.4 }, { year: 1950, co2: 5924.5 },
+      { year: 1960, co2: 9384.9 }, { year: 1970, co2: 14693.3 }, { year: 1980, co2: 19228.9 },
+      { year: 1990, co2: 22779.5 }, { year: 2000, co2: 25507.8 }, { year: 2010, co2: 33323.9 },
+      { year: 2020, co2: 35095.3 }, { year: 2025, co2: 38995.1 }
+    ];
+
+    const ERA_DATA = {
+      "1900": {
+        name: "1900", shortName: "1900", yearNum: 1900, co2Global: 1967, co2PerCapita: 1.21, tempAnomaly: 0.05,
+        description: "Inizio Novecento: industrializzazione concentrata in Europa e Nord America, quasi interamente alimentata a carbone. Suono essenziale, caldo e asciutto.",
+        fuelShare: "Carbone 95.7% · Petrolio 3.4% · Gas 0.6%",
+        fuels: [0.957, 0.034, 0.006], fuelShort: "CARB 96% · PET 3% · GAS 1%",
+        drive: 8, filterFreq: 9500, reverbMix: 0.14, detuneCents: 0, baseColor: "#38bdf8"
+      },
+      "1950": {
+        name: "1950", shortName: "1950", yearNum: 1950, co2Global: 5924, co2PerCapita: 2.38, tempAnomaly: 0.15,
+        description: "Secondo dopoguerra: parte la grande accelerazione economica e il petrolio si affianca al carbone. Il groove acquista corpo e movimento.",
+        fuelShare: "Carbone 65.5% · Petrolio 26.1% · Gas 6.0%",
+        fuels: [0.655, 0.261, 0.060], fuelShort: "CARB 66% · PET 26% · GAS 6%",
+        drive: 16, filterFreq: 7800, reverbMix: 0.22, detuneCents: 2, baseColor: "#fbbf24"
+      },
+      "1990": {
+        name: "1990", shortName: "1990", yearNum: 1990, co2Global: 22780, co2PerCapita: 4.28, tempAnomaly: 0.45,
+        description: "Anno di riferimento dei primi trattati sul clima: il petrolio supera il carbone a livello globale, il gas cresce e il ritmo si fa serrato.",
+        fuelShare: "Petrolio 40.6% · Carbone 38.1% · Gas 16.6%",
+        fuels: [0.381, 0.406, 0.166], fuelShort: "PET 41% · CARB 38% · GAS 17%",
+        drive: 26, filterFreq: 6200, reverbMix: 0.32, detuneCents: 5, baseColor: "#fb7185"
+      },
+      "2025": {
+        name: "2025", shortName: "2025", yearNum: 2025, co2Global: 38995, co2PerCapita: 4.74, tempAnomaly: 1.20,
+        description: "Presente: l'Asia diventa il primo polo emissivo mondiale (23.572 Mt). Il passato accumulato continua a risuonare sotto il ritmo del presente.",
+        fuelShare: "Carbone 40.3% · Petrolio 32.9% · Gas 20.7%",
+        fuels: [0.403, 0.329, 0.207], fuelShort: "CARB 40% · PET 33% · GAS 21%",
+        drive: 38, filterFreq: 4800, reverbMix: 0.44, detuneCents: 9, baseColor: "#f97316"
+      },
+      "2050": {
+        name: "2050 · Proiezione", shortName: "2050", yearNum: 2025, co2Global: 42000, co2PerCapita: 4.40, tempAnomaly: 2.50,
+        description: "Scenario proiettivo (+2.5 °C, non misurato nel CSV): massima densità ritmica, leggera scordatura climatica e lunga coda riverberata di CO₂ accumulata.",
+        fuelShare: "Proiezione climatica · mix energetico incerto",
+        fuels: null, fuelShort: "SCENARIO PROIETTIVO +2.5 °C",
+        drive: 54, filterFreq: 3200, reverbMix: 0.56, detuneCents: 18, baseColor: "#f59e0b"
+      }
+    };
+
+    const REGIONS = ["Europe", "North America", "Asia", "Africa"];
+    const REGION_IT = {
+      "Europe": "Europa",
+      "North America": "Nord America",
+      "Asia": "Asia",
+      "Africa": "Africa"
+    };
+    const REGION_PAN = {
+      "Europe": -0.22,
+      "North America": -0.55,
+      "Asia": 0.55,
+      "Africa": 0.22
+    };
+    const YEARS = [1900, 1950, 1990, 2025];
+    const PAD_KEYS = ["1","2","3","4","Q","W","E","R","A","S","D","F","Z","X","C","V"];
+    const ERA_YEAR_ROW = { "1900": 0, "1950": 1, "1990": 2, "2025": 3, "2050": 3 };
+    const FUEL_COLORS = { coal: "#64748b", oil: "#f59e0b", gas: "#38bdf8" };
+    const INSTRUMENTS = [
+      { id: "kick", label: "Kick / Sub" },
+      { id: "bass", label: "Basso Analog" },
+      { id: "perc", label: "Snare / Perc" },
+      { id: "synth", label: "Synth / Rhodes" },
+      { id: "hat", label: "Hi-Hat / Shaker" }
+    ];
+
+    // Default instrument per continent column (0=Europe, 1=North America, 2=Asia, 3=Africa)
+    const columnInstruments = ["bass", "synth", "kick", "perc"];
+
+    // Scala Do minore naturale (C2 -> D5) per suonare sempre musicale
+    const C_MINOR_FREQS = [
+      65.41, 73.42, 77.78, 87.31, 98.00, 103.83, 116.54,
+      130.81, 146.83, 155.56, 174.61, 196.00, 207.65, 233.08,
+      261.63, 293.66, 311.13, 349.23, 392.00, 415.30, 466.16,
+      523.25, 587.33
+    ];
+
+    // 16-step presets per era: each track [0..3] maps step index -> padId (or null)
+    function makePreset(bpm, tracksSpec) {
+      const tracks = Array.from({ length: 4 }, () => Array(16).fill(null));
+      tracksSpec.forEach((stepsMap, col) => {
+        Object.entries(stepsMap).forEach(([step, padId]) => {
+          tracks[col][Number(step)] = padId;
+        });
+      });
+      return { bpm, tracks };
+    }
+
+    const ERA_PRESETS = {
+      "1900": makePreset(86, [
+        { 0: 0, 6: 0, 8: 0, 14: 0 },
+        { 0: 1, 6: 1, 12: 1 },
+        { 0: 2, 10: 2 },
+        { 2: 3, 4: 3, 6: 3, 10: 3, 12: 3, 14: 3 }
+      ]),
+      "1950": makePreset(100, [
+        { 0: 4, 3: 4, 6: 4, 8: 4, 11: 4, 14: 4 },
+        { 2: 5, 5: 5, 10: 5, 13: 5 },
+        { 0: 6, 7: 6, 8: 6, 10: 6 },
+        { 2: 7, 4: 7, 6: 7, 10: 7, 12: 7, 14: 7, 15: 7 }
+      ]),
+      "1990": makePreset(116, [
+        { 0: 8, 2: 8, 3: 8, 6: 8, 8: 8, 10: 8, 12: 8, 14: 8 },
+        { 0: 9, 3: 9, 6: 9, 10: 9, 12: 9 },
+        { 0: 10, 6: 10, 10: 10, 14: 10 },
+        { 0: 11, 2: 11, 4: 11, 6: 11, 8: 11, 10: 11, 12: 11, 14: 11, 15: 11 }
+      ]),
+      "2025": makePreset(128, [
+        { 0: 12, 2: 12, 3: 12, 6: 8, 8: 12, 10: 12, 11: 12, 14: 8, 15: 12 },
+        { 0: 13, 3: 13, 6: 13, 8: 9, 11: 13, 14: 13 },
+        { 0: 14, 4: 14, 8: 14, 11: 14, 12: 14, 14: 14 },
+        { 2: 15, 4: 15, 6: 15, 7: 15, 10: 15, 12: 15, 14: 15, 15: 15 }
+      ]),
+      "2050": makePreset(140, [
+        { 0: 12, 2: 8, 4: 12, 6: 8, 8: 12, 10: 8, 12: 12, 14: 8 },
+        { 0: 13, 2: 9, 5: 13, 7: 9, 9: 13, 11: 9, 13: 13, 15: 9 },
+        { 0: 14, 3: 14, 6: 10, 10: 14, 12: 14, 14: 14 },
+        { 1: 15, 2: 15, 4: 15, 6: 11, 7: 15, 9: 15, 10: 11, 12: 15, 14: 15, 15: 15 }
+      ])
+    };
+
+    // Progressione armonica su 2 battute (8 quarti: 0..3 bar 1, 4..7 bar 2) in gradi della scala
+    const ERA_CONTOURS = {
+      "1900": [0, 0, -2, -2, -3, -3, -2, -1],
+      "1950": [0, 2, 4, 2, -2, 0, 2, -1],
+      "1990": [0, 0, 2, 4, 3, 2, -2, 0],
+      "2025": [0, 0, -2, -2, -3, -3, -1, 2],
+      "2050": [0, 1, 0, -1, -2, -1, 1, -1]
+    };
+
+    // --- 2. STATO APPLICAZIONE ---
+    let samplerRows = SAMPLER_DATA_FALLBACK;
+    let PAD_DEFINITIONS = [];
+    let currentDecade = "1900";
+    let isPlaying = false;
+    let bpm = 86;
+    let musicalScaleOn = true;
+    let vizMode = "waveform";
+    const sequenceTracks = Array.from({ length: 4 }, () => Array(16).fill(null));
+
+    // Scheduler look-ahead state
+    let currentStep = 0;
+    let barIndex = 0;
+    let nextNoteTime = 0;
+    let schedulerTimer = null;
+    const LOOKAHEAD_MS = 25;
+    const SCHEDULE_AHEAD_SEC = 0.10;
+
+    // Story playback state
+    const STORY_ORDER = ["1900", "1950", "1990", "2025", "2050"];
+    let storyActive = false;
+    let storyEraIdx = 0;
+    let storyStepCounter = 0;
+    const STORY_STEPS_PER_ERA = 32; // 2 battute da 16 step per epoca
+
+    // Artwork recording state
+    let recording = null;
+
+    function buildPads() {
+      PAD_DEFINITIONS = YEARS.flatMap((y, yi) => REGIONS.map((r, ri) => {
+        const d = samplerRows.find(x => x.country === r && x.year === y);
+        return {
+          id: yi * 4 + ri,
+          col: ri,
+          row: yi,
+          key: PAD_KEYS[yi * 4 + ri],
+          region: r,
+          year: y,
+          label: `${REGION_IT[r]} ${y}`,
+          data: d
+        };
+      }));
+    }
+
+    function quantizeFreq(hz) {
+      if (!musicalScaleOn) return hz;
+      let best = C_MINOR_FREQS[0];
+      let bestDist = Infinity;
+      for (const f of C_MINOR_FREQS) {
+        const dist = Math.abs(Math.log2(hz / f));
+        if (dist < bestDist) { bestDist = dist; best = f; }
+      }
+      return best;
+    }
+
+    function shiftScaleDegree(hz, degreeOffset) {
+      if (!musicalScaleOn || degreeOffset === 0) return quantizeFreq(hz);
+      let bestIdx = 0;
+      let bestDist = Infinity;
+      for (let i = 0; i < C_MINOR_FREQS.length; i++) {
+        const dist = Math.abs(Math.log2(hz / C_MINOR_FREQS[i]));
+        if (dist < bestDist) { bestDist = dist; bestIdx = i; }
+      }
+      const shifted = Math.max(0, Math.min(C_MINOR_FREQS.length - 1, bestIdx + degreeOffset));
+      return C_MINOR_FREQS[shifted];
+    }
+
+    // --- 3. MOTORE AUDIO WEB AUDIO API (PULITO, CON LIMITER, DELAY E RIVERBERO) ---
+    let audioCtx = null;
+    let dryBus = null;
+    let reverbConvolver = null;
+    let reverbMasterGain = null;
+    let delayNode = null;
+    let delayFilter = null;
+    let delayFeedback = null;
+    let delayWetGain = null;
+    let masterFilter = null;
+    let warmthShaper = null;
+    let masterCompressor = null;
+    let masterGain = null;
+    let analyserNode = null;
+    let noiseBuffer = null;
+
+    function updateDelayTime() {
+      if (!delayNode || !audioCtx) return;
+      const dotted8th = Math.min(0.85, (60 / bpm) * 0.75);
+      delayNode.delayTime.setTargetAtTime(dotted8th, audioCtx.currentTime, 0.05);
+    }
+
+    function createNoiseBuffer(ctx) {
+      const len = ctx.sampleRate;
+      const buf = ctx.createBuffer(1, len, ctx.sampleRate);
+      const ch = buf.getChannelData(0);
+      for (let i = 0; i < len; i++) ch[i] = Math.random() * 2 - 1;
+      return buf;
+    }
+
+    function createImpulseResponse(ctx, durationSec = 2.4) {
+      const len = Math.floor(ctx.sampleRate * durationSec);
+      const impulse = ctx.createBuffer(2, len, ctx.sampleRate);
+      for (let c = 0; c < 2; c++) {
+        const ch = impulse.getChannelData(c);
+        let lp = 0;
+        for (let i = 0; i < len; i++) {
+          const decay = Math.pow(1 - i / len, 2.8);
+          const white = Math.random() * 2 - 1;
+          lp = lp * 0.65 + white * 0.35; // damped warm tail
+          ch[i] = lp * decay * 0.45;
+        }
+      }
+      return impulse;
+    }
+
+    // Saturazione calda normalizzata: nessuna perdita di volume a drive basso, zero clipping
+    function updateWarmthCurve(drivePct) {
+      if (!warmthShaper) return;
+      const drive = 1 + (drivePct / 100) * 3.0;
+      const norm = Math.tanh(drive);
+      const n = 2048;
+      const curve = new Float32Array(n);
+      for (let i = 0; i < n; i++) {
+        const x = (i * 2) / (n - 1) - 1;
+        curve[i] = Math.tanh(x * drive) / norm;
+      }
+      warmthShaper.curve = curve;
+      warmthShaper.oversample = "2x";
+    }
+
+    function initAudioEngine() {
+      if (audioCtx) return;
+      const AudioCtx = window.AudioContext || window.webkitAudioContext;
+      audioCtx = new AudioCtx();
+
+      dryBus = audioCtx.createGain();
+      dryBus.gain.value = 0.92;
+
+      reverbConvolver = audioCtx.createConvolver();
+      reverbConvolver.buffer = createImpulseResponse(audioCtx, 2.4);
+      reverbMasterGain = audioCtx.createGain();
+      reverbMasterGain.gain.value = ERA_DATA[currentDecade].reverbMix;
+
+      delayNode = audioCtx.createDelay(1.0);
+      delayFilter = audioCtx.createBiquadFilter();
+      delayFilter.type = "lowpass";
+      delayFilter.frequency.value = 2200;
+      delayFeedback = audioCtx.createGain();
+      delayFeedback.gain.value = 0.26;
+      delayWetGain = audioCtx.createGain();
+      delayWetGain.gain.value = 0.22;
+      updateDelayTime();
+
+      masterFilter = audioCtx.createBiquadFilter();
+      masterFilter.type = "lowpass";
+      masterFilter.Q.value = 0.75;
+      masterFilter.frequency.value = ERA_DATA[currentDecade].filterFreq;
+
+      warmthShaper = audioCtx.createWaveShaper();
+      updateWarmthCurve(+document.getElementById("slider-drive").value);
+
+      masterCompressor = audioCtx.createDynamicsCompressor();
+      masterCompressor.threshold.value = -12;
+      masterCompressor.knee.value = 14;
+      masterCompressor.ratio.value = 6;
+      masterCompressor.attack.value = 0.003;
+      masterCompressor.release.value = 0.14;
+
+      masterGain = audioCtx.createGain();
+      masterGain.gain.value = 0.85;
+
+      analyserNode = audioCtx.createAnalyser();
+      analyserNode.fftSize = 512;
+
+      noiseBuffer = createNoiseBuffer(audioCtx);
+
+      dryBus.connect(masterFilter);
+      reverbConvolver.connect(reverbMasterGain);
+      reverbMasterGain.connect(masterFilter);
+      delayNode.connect(delayFilter);
+      delayFilter.connect(delayFeedback);
+      delayFeedback.connect(delayNode);
+      delayFilter.connect(delayWetGain);
+      delayWetGain.connect(masterFilter);
+      masterFilter.connect(warmthShaper);
+      warmthShaper.connect(masterCompressor);
+      masterCompressor.connect(masterGain);
+      masterGain.connect(analyserNode);
+      analyserNode.connect(audioCtx.destination);
+
+      const st = document.getElementById("audio-status");
+      st.textContent = "ATTIVO";
+      st.style.color = "var(--ok)";
+    }
+
+    function routeVoice(voiceOut, region, decaySec, when, delayAmt = 0) {
+      const panner = audioCtx.createStereoPanner();
+      panner.pan.setValueAtTime(REGION_PAN[region] || 0, when);
+      voiceOut.connect(panner);
+      panner.connect(dryBus);
+
+      const revSend = audioCtx.createGain();
+      // Coda di riverbero proporzionale alla CO2 cumulativa (decay_sec 0.25..2.45)
+      const sendAmt = Math.min(0.6, 0.06 + ((decaySec - 0.25) / 2.2) * 0.50);
+      revSend.gain.setValueAtTime(sendAmt, when);
+      panner.connect(revSend);
+      revSend.connect(reverbConvolver);
+
+      if (delayAmt > 0 && delayNode) {
+        const dSend = audioCtx.createGain();
+        dSend.gain.setValueAtTime(delayAmt, when);
+        panner.connect(dSend);
+        dSend.connect(delayNode);
+      }
+    }
+
+    function playKick(d, when, freq, accent = 1) {
+      const out = audioCtx.createGain();
+      const subTarget = 46 + Math.min(16, (freq - 65) * 0.03);
+      const dur = 0.26 + Math.min(0.30, d.decay_sec * 0.12);
+      const peak = (0.48 + d.gain_norm * 0.36) * accent;
+
+      // Deep 808 sub body
+      const osc = audioCtx.createOscillator();
+      osc.type = "sine";
+      osc.frequency.setValueAtTime(165 + d.oil_share * 24, when);
+      osc.frequency.exponentialRampToValueAtTime(subTarget, when + 0.055);
+      osc.frequency.exponentialRampToValueAtTime(38, when + dur);
+
+      out.gain.setValueAtTime(0.0001, when);
+      out.gain.linearRampToValueAtTime(peak, when + 0.004);
+      out.gain.exponentialRampToValueAtTime(0.0001, when + dur);
+
+      // Mid-low punch body (udibile anche su casse di portatile)
+      const punch = audioCtx.createOscillator();
+      const punchGain = audioCtx.createGain();
+      punch.type = "triangle";
+      punch.frequency.setValueAtTime(118, when);
+      punch.frequency.exponentialRampToValueAtTime(56, when + 0.045);
+      punchGain.gain.setValueAtTime(peak * 0.42, when);
+      punchGain.gain.exponentialRampToValueAtTime(0.0001, when + 0.055);
+
+      // Crisp beater transient
+      const beater = audioCtx.createBufferSource();
+      beater.buffer = noiseBuffer;
+      const bp = audioCtx.createBiquadFilter();
+      bp.type = "bandpass";
+      bp.frequency.setValueAtTime(1600, when);
+      bp.Q.value = 1.4;
+      const beaterGain = audioCtx.createGain();
+      beaterGain.gain.setValueAtTime(peak * 0.28, when);
+      beaterGain.gain.exponentialRampToValueAtTime(0.0001, when + 0.012);
+
+      osc.connect(out);
+      punch.connect(punchGain);
+      punchGain.connect(out);
+      beater.connect(bp);
+      bp.connect(beaterGain);
+      beaterGain.connect(out);
+      routeVoice(out, d.country, d.decay_sec * 0.65, when, 0);
+
+      osc.start(when);
+      osc.stop(when + dur + 0.03);
+      punch.start(when);
+      punch.stop(when + 0.065);
+      beater.start(when);
+      beater.stop(when + 0.02);
+    }
+
+    function playBass(d, when, freq, detune, accent = 1) {
+      let bassFreq = freq;
+      while (bassFreq > 155) bassFreq /= 2;
+      while (bassFreq < 48) bassFreq *= 2;
+
+      const dur = Math.min(0.46, 0.17 + d.decay_sec * 0.13);
+      const peak = (0.25 + d.gain_norm * 0.30) * accent;
+
+      const sub = audioCtx.createOscillator();
+      sub.type = "sine";
+      sub.frequency.setValueAtTime(bassFreq, when);
+
+      // Due oscillatori analogici leggermente scordati stile Moog
+      const oscA = audioCtx.createOscillator();
+      oscA.type = d.coal_share > 0.45 ? "sawtooth" : "triangle";
+      oscA.frequency.setValueAtTime(bassFreq, when);
+      oscA.detune.setValueAtTime(-6 - detune * 0.3, when);
+
+      const oscB = audioCtx.createOscillator();
+      oscB.type = "sawtooth";
+      oscB.frequency.setValueAtTime(bassFreq, when);
+      oscB.detune.setValueAtTime(6 + detune * 0.3, when);
+
+      const upperMix = audioCtx.createGain();
+      upperMix.gain.setValueAtTime(0.26 + d.coal_share * 0.18 + d.oil_share * 0.14, when);
+
+      const filt = audioCtx.createBiquadFilter();
+      filt.type = "lowpass";
+      filt.Q.value = 2.6 + d.oil_share * 2.4;
+      filt.frequency.setValueAtTime(bassFreq * (5.5 + 3.5 * accent), when);
+      filt.frequency.exponentialRampToValueAtTime(Math.max(85, bassFreq * 1.45), when + dur * 0.72);
+
+      const out = audioCtx.createGain();
+      out.gain.setValueAtTime(0.0001, when);
+      out.gain.linearRampToValueAtTime(peak, when + 0.006);
+      out.gain.exponentialRampToValueAtTime(0.0001, when + dur);
+
+      sub.connect(filt);
+      oscA.connect(upperMix);
+      oscB.connect(upperMix);
+      upperMix.connect(filt);
+      filt.connect(out);
+      routeVoice(out, d.country, d.decay_sec * 0.7, when, 0);
+
+      sub.start(when);
+      oscA.start(when);
+      oscB.start(when);
+      sub.stop(when + dur + 0.03);
+      oscA.stop(when + dur + 0.03);
+      oscB.stop(when + dur + 0.03);
+    }
+
+    function playPerc(d, when, freq, accent = 1, stepIdx = null) {
+      const isBackbeat = stepIdx === null || stepIdx === 4 || stepIdx === 12;
+      if (!isBackbeat) {
+        const isOpen = barIndex === 1 && (stepIdx === 14 || stepIdx === 15);
+        const isGhostRim = stepIdx === 7 || stepIdx === 9;
+        if (isGhostRim) {
+          const rim = audioCtx.createOscillator();
+          const rimGain = audioCtx.createGain();
+          rim.type = "triangle";
+          rim.frequency.setValueAtTime(420, when);
+          rim.frequency.exponentialRampToValueAtTime(210, when + 0.025);
+          rimGain.gain.setValueAtTime(0.09 + d.gain_norm * 0.08, when);
+          rimGain.gain.exponentialRampToValueAtTime(0.0001, when + 0.035);
+          rim.connect(rimGain);
+          routeVoice(rimGain, d.country, d.decay_sec * 0.4, when, 0.14);
+          rim.start(when);
+          rim.stop(when + 0.04);
+          return;
+        }
+        const hatDur = isOpen ? 0.14 : 0.042;
+        const hatPeak = (isOpen ? 0.15 : 0.10) + d.gain_norm * 0.10;
+        const noise = audioCtx.createBufferSource();
+        noise.buffer = noiseBuffer;
+        const hp = audioCtx.createBiquadFilter();
+        hp.type = "highpass";
+        hp.frequency.setValueAtTime(7500, when);
+        const hOut = audioCtx.createGain();
+        hOut.gain.setValueAtTime(0.0001, when);
+        hOut.gain.linearRampToValueAtTime(hatPeak, when + 0.002);
+        hOut.gain.exponentialRampToValueAtTime(0.0001, when + hatDur);
+        noise.connect(hp);
+        hp.connect(hOut);
+        routeVoice(hOut, d.country, d.decay_sec * 0.4, when, isOpen ? 0.18 : 0.05);
+        noise.start(when);
+        noise.stop(when + hatDur + 0.02);
+        return;
+      }
+
+      // Snare + Clap stratificato sul backbeat (2 & 4)
+      const dur = 0.15 + Math.min(0.14, d.decay_sec * 0.05);
+      const peak = (0.28 + d.gain_norm * 0.30) * accent;
+      const bodyPitch = 175 + Math.min(95, (freq - 65) * 0.2);
+
+      const body = audioCtx.createOscillator();
+      body.type = "triangle";
+      body.frequency.setValueAtTime(bodyPitch, when);
+      body.frequency.exponentialRampToValueAtTime(bodyPitch * 0.52, when + 0.055);
+      const bodyGain = audioCtx.createGain();
+      bodyGain.gain.setValueAtTime(peak * 0.6, when);
+      bodyGain.gain.exponentialRampToValueAtTime(0.0001, when + 0.09);
+
+      const out = audioCtx.createGain();
+      body.connect(bodyGain);
+      bodyGain.connect(out);
+
+      // Doppio micro-clap (0ms e 14ms) per presenza e spessore
+      [0, 0.014].forEach((offset, idx) => {
+        const noise = audioCtx.createBufferSource();
+        noise.buffer = noiseBuffer;
+        const bp = audioCtx.createBiquadFilter();
+        bp.type = "bandpass";
+        bp.frequency.setValueAtTime(idx === 0 ? 2200 + d.gas_share * 900 : 1700 + d.oil_share * 700, when + offset);
+        bp.Q.value = 1.0;
+
+        const nGain = audioCtx.createGain();
+        nGain.gain.setValueAtTime(0.0001, when + offset);
+        nGain.gain.linearRampToValueAtTime(peak * (idx === 0 ? 0.72 : 0.55), when + offset + 0.003);
+        nGain.gain.exponentialRampToValueAtTime(0.0001, when + offset + dur);
+
+        noise.connect(bp);
+        bp.connect(nGain);
+        nGain.connect(out);
+        noise.start(when + offset);
+        noise.stop(when + offset + dur + 0.02);
+      });
+
+      routeVoice(out, d.country, d.decay_sec, when, 0.16);
+      body.start(when);
+      body.stop(when + 0.11);
+    }
+
+    function playSynth(d, when, freq, detune, accent = 1) {
+      let root = freq;
+      while (root < 145) root *= 2;
+      while (root > 460) root /= 2;
+
+      const dur = Math.min(0.85, 0.24 + d.decay_sec * 0.25);
+      const peak = (0.15 + d.gain_norm * 0.18) * accent;
+      const ratios = musicalScaleOn ? [1, 1.1892, 1.4983] : [1];
+      const voiceScale = musicalScaleOn ? 0.45 : 1.0;
+
+      const filt = audioCtx.createBiquadFilter();
+      filt.type = "lowpass";
+      filt.Q.value = 1.4;
+      filt.frequency.setValueAtTime(Math.min(6200, root * (4.0 + d.gain_norm * 3.5)), when);
+      filt.frequency.exponentialRampToValueAtTime(Math.max(300, root * 1.6), when + dur);
+
+      const out = audioCtx.createGain();
+      out.gain.setValueAtTime(0.0001, when);
+      out.gain.linearRampToValueAtTime(peak, when + 0.01);
+      out.gain.exponentialRampToValueAtTime(0.0001, when + dur);
+
+      ratios.forEach((ratio, idx) => {
+        const osc = audioCtx.createOscillator();
+        osc.type = idx === 0 ? "triangle" : (d.gas_share > 0.22 ? "sine" : "sawtooth");
+        osc.frequency.setValueAtTime(root * ratio, when);
+        osc.detune.setValueAtTime((idx - 1) * (4 + detune * 0.5), when);
+        const vg = audioCtx.createGain();
+        vg.gain.setValueAtTime(voiceScale * (idx === 0 ? 1.0 : 0.72), when);
+        osc.connect(vg);
+        vg.connect(filt);
+        osc.start(when);
+        osc.stop(when + dur + 0.04);
+      });
+
+      filt.connect(out);
+      routeVoice(out, d.country, d.decay_sec, when, 0.24);
+    }
+
+    function playHat(d, when) {
+      const dur = 0.045 + Math.min(0.11, d.decay_sec * 0.04);
+      const peak = 0.14 + d.gain_norm * 0.20;
+
+      const noise = audioCtx.createBufferSource();
+      noise.buffer = noiseBuffer;
+      const hp = audioCtx.createBiquadFilter();
+      hp.type = "highpass";
+      hp.frequency.setValueAtTime(6800, when);
+
+      const out = audioCtx.createGain();
+      out.gain.setValueAtTime(0.0001, when);
+      out.gain.linearRampToValueAtTime(peak, when + 0.002);
+      out.gain.exponentialRampToValueAtTime(0.0001, when + dur);
+
+      noise.connect(hp);
+      hp.connect(out);
+      routeVoice(out, d.country, d.decay_sec * 0.5, when, 0.08);
+
+      noise.start(when);
+      noise.stop(when + dur + 0.02);
+    }
+
+    function triggerPadSound(padObj, scheduledTime = null, stepIdx = null) {
+      if (!audioCtx) initAudioEngine();
+      if (audioCtx.state === "suspended") audioCtx.resume();
+
+      const when = scheduledTime ?? audioCtx.currentTime;
+      const d = padObj.data;
+      const detune = ERA_DATA[currentDecade].detuneCents;
+      const inst = columnInstruments[padObj.col];
+
+      let freq = quantizeFreq(d.freq_hz_log);
+      let accent = 1.0;
+
+      if (stepIdx !== null && musicalScaleOn && (inst === "bass" || inst === "synth")) {
+        const beatSlot = barIndex * 4 + Math.floor(stepIdx / 4);
+        const contour = ERA_CONTOURS[currentDecade] || ERA_CONTOURS["1900"];
+        let degreeShift = contour[beatSlot] || 0;
+        if (inst === "bass" && (stepIdx === 2 || stepIdx === 10 || stepIdx === 14)) {
+          degreeShift += 7; // salto d'ottava groovy su sedicesimi di passaggio
+          accent = 0.88;
+        }
+        freq = shiftScaleDegree(d.freq_hz_log, degreeShift);
+      }
+      if (stepIdx !== null && (stepIdx === 0 || stepIdx === 4 || stepIdx === 8 || stepIdx === 12)) {
+        accent = 1.12;
+      }
+
+      if (inst === "kick") playKick(d, when, freq, accent);
+      else if (inst === "bass") playBass(d, when, freq, detune, accent);
+      else if (inst === "perc") playPerc(d, when, freq, accent, stepIdx);
+      else if (inst === "hat") playHat(d, when);
+      else playSynth(d, when, freq, detune, accent);
+
+      const delayMs = Math.max(0, (when - audioCtx.currentTime) * 1000);
+      setTimeout(() => highlightPadUI(padObj.id), delayMs);
+    }
+
+    function highlightPadUI(padId) {
+      const el = document.getElementById(`mpc-pad-${padId}`);
+      if (!el) return;
+      el.classList.add("active");
+      setTimeout(() => el.classList.remove("active"), 130);
+    }
+
+    // --- 4. UI BUILDERS ---
+    function renderColumnHeaders() {
+      const box = document.getElementById("column-headers");
+      box.innerHTML = "";
+      REGIONS.forEach((r, col) => {
+        const div = document.createElement("div");
+        div.className = "col-header";
+        const panTxt = REGION_PAN[r] < 0 ? "L" : "R";
+        const opts = INSTRUMENTS.map(inst =>
+          `<option value="${inst.id}" ${columnInstruments[col] === inst.id ? "selected" : ""}>${inst.label}</option>`
+        ).join("");
+        div.innerHTML = `
+          <div class="col-name">
+            <span>${REGION_IT[r]}</span>
+            <span class="col-pan">PAN ${panTxt}</span>
+          </div>
+          <select class="inst-select" data-col="${col}" aria-label="Strumento ${REGION_IT[r]}">${opts}</select>
+        `;
+        div.querySelector("select").addEventListener("change", (e) => {
+          columnInstruments[col] = e.target.value;
+          renderSequencerGrid();
+        });
+        box.appendChild(div);
+      });
+    }
+
+    function renderMPCGrid() {
+      const grid = document.getElementById("mpc-grid");
+      grid.innerHTML = "";
+      const activeRow = ERA_YEAR_ROW[currentDecade];
+
+      PAD_DEFINITIONS.forEach(pad => {
+        const d = pad.data;
+        const hzShown = Math.round(quantizeFreq(d.freq_hz_log));
+        const padDiv = document.createElement("div");
+        padDiv.id = `mpc-pad-${pad.id}`;
+        padDiv.className = `mpc-pad ${pad.row === activeRow ? "era-row" : ""}`;
+        padDiv.style.setProperty("--pad-glow", FUEL_COLORS[d.dominant_fuel] || "#e3a845");
+
+        padDiv.innerHTML = `
+          <div class="pad-top">
+            <span class="pad-key">${pad.key}</span>
+            <div class="pad-led"></div>
+          </div>
+          <div class="pad-center">
+            <div class="pad-title">${pad.label}</div>
+            <div class="pad-metric">${hzShown} Hz · ${d.co2_per_capita.toFixed(1)} t/ab</div>
+          </div>
+          <div class="pad-foot">
+            <div class="fuel-bar" title="Carbone ${Math.round(d.coal_share*100)}% · Petrolio ${Math.round(d.oil_share*100)}% · Gas ${Math.round(d.gas_share*100)}%">
+              <span style="width:${d.coal_share*100}%; background:#64748b"></span>
+              <span style="width:${d.oil_share*100}%; background:#f59e0b"></span>
+              <span style="width:${d.gas_share*100}%; background:#38bdf8"></span>
+            </div>
+            <span>${d.decay_sec}s</span>
+          </div>
+        `;
+
+        padDiv.addEventListener("mousedown", () => triggerPadSound(pad));
+        padDiv.addEventListener("touchstart", (e) => {
+          e.preventDefault();
+          triggerPadSound(pad);
+        }, { passive: false });
+
+        grid.appendChild(padDiv);
+      });
+    }
+
+    function renderSequencerGrid() {
+      const c = document.getElementById("sequencer-steps-grid");
+      c.innerHTML = "";
+
+      // Header LED row
+      c.appendChild(document.createElement("div"));
+      for (let s = 0; s < 16; s++) {
+        const led = document.createElement("div");
+        led.id = `seq-led-${s}`;
+        led.className = "step-led";
+        c.appendChild(led);
+      }
+
+      // 4 continent tracks
+      REGIONS.forEach((r, col) => {
+        const instObj = INSTRUMENTS.find(x => x.id === columnInstruments[col]);
+        const lbl = document.createElement("div");
+        lbl.className = "seq-track-label";
+        lbl.innerHTML = `<strong>${REGION_IT[r]}</strong><span>${instObj ? instObj.label : ""}</span>`;
+        c.appendChild(lbl);
+
+        for (let s = 0; s < 16; s++) {
+          const padId = sequenceTracks[col][s];
+          const btn = document.createElement("button");
+          btn.id = `seq-step-${col}-${s}`;
+          const yr = padId !== null ? PAD_DEFINITIONS[padId].year : null;
+          btn.className = `step-btn ${s % 4 === 0 ? "beat-start" : ""} ${yr ? `on-${yr}` : ""}`;
+          btn.textContent = yr ? String(yr).slice(-2) : "";
+          btn.setAttribute("aria-label", `${REGION_IT[r]}, step ${s + 1}`);
+
+          btn.addEventListener("click", () => {
+            if (sequenceTracks[col][s] === null) {
+              const targetRow = ERA_YEAR_ROW[currentDecade];
+              const newPadId = targetRow * 4 + col;
+              sequenceTracks[col][s] = newPadId;
+              triggerPadSound(PAD_DEFINITIONS[newPadId]);
+            } else {
+              sequenceTracks[col][s] = null;
+            }
+            renderSequencerGrid();
+          });
+          c.appendChild(btn);
+        }
+      });
+    }
+
+    // --- 5. GESTIONE ERE, PRESET E PLAY STORIA ---
+    function loadEraPreset(decadeKey = currentDecade) {
+      const p = ERA_PRESETS[decadeKey];
+      for (let col = 0; col < 4; col++) {
+        for (let s = 0; s < 16; s++) {
+          sequenceTracks[col][s] = p.tracks[col][s];
+        }
+      }
+      bpm = p.bpm;
+      document.getElementById("input-bpm").value = bpm;
+      renderSequencerGrid();
+    }
+
+    function setDecade(decadeKey, loadPresetToo = true) {
+      currentDecade = decadeKey;
+      const d = ERA_DATA[decadeKey];
+
+      document.querySelectorAll(".era-btn").forEach(btn => {
+        btn.classList.toggle("active", btn.dataset.decade === decadeKey);
+      });
+
+      document.getElementById("decade-indicator-badge").textContent = d.name;
+      document.getElementById("header-co2").textContent = `${d.co2Global.toLocaleString("it-IT")} Mt`;
+      document.getElementById("header-temp").textContent = `+${d.tempAnomaly.toFixed(2)} °C`;
+      document.getElementById("era-pc-badge").textContent = `${d.co2PerCapita.toFixed(2)} t/persona`;
+      document.getElementById("era-description").textContent = d.description;
+      document.getElementById("era-fuel-share").textContent = d.fuelShare;
+      document.getElementById("temp-marker").style.left = `${Math.min(100, (d.tempAnomaly / 2.5) * 100)}%`;
+
+      document.getElementById("slider-drive").value = d.drive;
+      document.getElementById("label-drive").textContent = `${d.drive}%`;
+      document.getElementById("slider-filter").value = d.filterFreq;
+      document.getElementById("label-filter").textContent = `${(d.filterFreq / 1000).toFixed(1)} kHz`;
+
+      bgTarget = d.tempAnomaly;
+
+      if (audioCtx) {
+        masterFilter.frequency.setTargetAtTime(d.filterFreq, audioCtx.currentTime, 0.08);
+        reverbMasterGain.gain.setTargetAtTime(d.reverbMix, audioCtx.currentTime, 0.08);
+        updateWarmthCurve(d.drive);
+      }
+
+      if (loadPresetToo) loadEraPreset(decadeKey);
+      updateDelayTime();
+      renderMPCGrid();
+      drawChartOverlay();
+    }
+
+    // --- 6. SCHEDULER LOOK-AHEAD A 16 STEP ---
+    function stepDurationSec(stepIdx) {
+      const base16th = 60 / bpm / 4;
+      const swing = 0.08 * base16th;
+      return stepIdx % 2 === 0 ? base16th + swing : base16th - swing;
+    }
+
+    function scheduleStep(stepIdx, when) {
+      for (let col = 0; col < 4; col++) {
+        const padId = sequenceTracks[col][stepIdx];
+        if (padId !== null) {
+          triggerPadSound(PAD_DEFINITIONS[padId], when, stepIdx);
+        }
+      }
+
+      const uiDelay = Math.max(0, (when - audioCtx.currentTime) * 1000);
+      setTimeout(() => {
+        for (let s = 0; s < 16; s++) {
+          const led = document.getElementById(`seq-led-${s}`);
+          if (led) led.classList.toggle("active-step", s === stepIdx);
+        }
+      }, uiDelay);
+
+      if (storyActive) {
+        storyStepCounter++;
+        if (storyStepCounter >= STORY_STEPS_PER_ERA) {
+          storyStepCounter = 0;
+          storyEraIdx++;
+          if (storyEraIdx < STORY_ORDER.length) {
+            const nextEra = STORY_ORDER[storyEraIdx];
+            setTimeout(() => {
+              if (!storyActive) return;
+              setDecade(nextEra, true);
+              document.getElementById("story-status").textContent = `STORIA: ${ERA_DATA[nextEra].name} (${storyEraIdx + 1}/${STORY_ORDER.length})`;
+            }, uiDelay);
+          } else {
+            setTimeout(() => stopStory(), uiDelay);
+          }
+        }
+      }
+    }
+
+    function schedulerTick() {
+      while (nextNoteTime < audioCtx.currentTime + SCHEDULE_AHEAD_SEC) {
+        scheduleStep(currentStep, nextNoteTime);
+        nextNoteTime += stepDurationSec(currentStep);
+        currentStep = (currentStep + 1) % 16;
+        if (currentStep === 0) barIndex = 1 - barIndex;
+      }
+    }
+
+    function startLoop() {
+      if (!audioCtx) initAudioEngine();
+      if (audioCtx.state === "suspended") audioCtx.resume();
+      if (isPlaying) return;
+
+      isPlaying = true;
+      currentStep = 0;
+      barIndex = 0;
+      nextNoteTime = audioCtx.currentTime + 0.04;
+      schedulerTimer = setInterval(schedulerTick, LOOKAHEAD_MS);
+
+      const btn = document.getElementById("btn-play-seq");
+      btn.textContent = "❚❚ PAUSA LOOP";
+      btn.classList.add("playing");
+    }
+
+    function stopLoop() {
+      if (!isPlaying) return;
+      isPlaying = false;
+      clearInterval(schedulerTimer);
+      schedulerTimer = null;
+
+      const btn = document.getElementById("btn-play-seq");
+      btn.textContent = "▶ AVVIA LOOP";
+      btn.classList.remove("playing");
+
+      for (let s = 0; s < 16; s++) {
+        const led = document.getElementById(`seq-led-${s}`);
+        if (led) led.classList.remove("active-step");
+      }
+    }
+
+    function toggleSequencer() {
+      if (isPlaying) {
+        if (storyActive) stopStory();
+        else stopLoop();
+      } else {
+        startLoop();
+      }
+    }
+
+    function startStory() {
+      if (storyActive) { stopStory(); return; }
+      storyActive = true;
+      storyEraIdx = 0;
+      storyStepCounter = 0;
+      setDecade(STORY_ORDER[0], true);
+      document.getElementById("btn-play-story").classList.add("active");
+      document.getElementById("btn-play-story").textContent = "■ FERMA STORIA";
+      document.getElementById("story-status").textContent = `STORIA: ${ERA_DATA[STORY_ORDER[0]].name} (1/${STORY_ORDER.length})`;
+      if (!isPlaying) startLoop();
+    }
+
+    function stopStory() {
+      storyActive = false;
+      document.getElementById("btn-play-story").classList.remove("active");
+      document.getElementById("btn-play-story").textContent = "▶ PLAY STORIA (1900→2050)";
+      document.getElementById("story-status").textContent = "";
+      stopLoop();
+    }
+
+    // --- 7. VISUALIZZATORE, SFONDO TERMICO & OPERA VISIVA ---
+    const REDUCED = matchMedia("(prefers-reduced-motion: reduce)").matches;
+    const TEMP_STOPS = [
+      { t: 0,    top: [8, 24, 48],  bottom: [14, 52, 82],  glow: [56, 189, 248] },
+      { t: 0.45, top: [30, 20, 44], bottom: [104, 52, 68], glow: [251, 146, 60] },
+      { t: 1.2,  top: [44, 12, 18], bottom: [118, 28, 24], glow: [239, 68, 68] },
+      { t: 2.5,  top: [34, 10, 6],  bottom: [154, 54, 12], glow: [251, 191, 36] }
+    ];
+    let bgTemp = 0.05, bgTarget = 0.05, pulse = 0;
+    const levelBuf = new Uint8Array(256);
+
+    function tempColors(t) {
+      let i = 0;
+      while (i < TEMP_STOPS.length - 2 && t > TEMP_STOPS[i + 1].t) i++;
+      const a = TEMP_STOPS[i], b = TEMP_STOPS[i + 1];
+      const k = Math.min(1, Math.max(0, (t - a.t) / (b.t - a.t)));
+      const mix = key => `rgb(${a[key].map((v, j) => Math.round(v + (b[key][j] - v) * k)).join(",")})`;
+      return { top: mix("top"), bottom: mix("bottom"), glow: mix("glow") };
+    }
+
+    function animateBackground() {
+      bgTemp = REDUCED ? bgTarget : bgTemp + (bgTarget - bgTemp) * 0.05;
+      let level = 0;
+      if (analyserNode && !REDUCED) {
+        analyserNode.getByteFrequencyData(levelBuf);
+        let sum = 0;
+        for (let i = 0; i < 64; i++) sum += levelBuf[i];
+        level = sum / (64 * 255);
+      }
+      if (recording) captureFrame();
+      pulse += (Math.min(0.65, level * 2.0) - pulse) * 0.15;
+      const c = tempColors(bgTemp), st = document.documentElement.style;
+      st.setProperty("--bg-top", c.top);
+      st.setProperty("--bg-bottom", c.bottom);
+      st.setProperty("--bg-glow", c.glow);
+      st.setProperty("--pulse", pulse.toFixed(3));
+      requestAnimationFrame(animateBackground);
+    }
+
+    function setupCanvasVisualizer() {
+      const canvas = document.getElementById("audio-canvas");
+      const ctx = canvas.getContext("2d");
+
+      function resize() {
+        canvas.width = canvas.parentElement.clientWidth;
+        canvas.height = canvas.parentElement.clientHeight;
+        drawChartOverlay();
+      }
+      resize();
+      window.addEventListener("resize", resize);
+
+      function draw() {
+        requestAnimationFrame(draw);
+        ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+        if (!analyserNode) {
+          ctx.beginPath();
+          ctx.strokeStyle = "rgba(227, 168, 69, 0.35)";
+          ctx.lineWidth = 1.5;
+          ctx.moveTo(0, canvas.height / 2);
+          ctx.lineTo(canvas.width, canvas.height / 2);
+          ctx.stroke();
+          return;
+        }
+
+        const color = ERA_DATA[currentDecade].baseColor;
+        if (vizMode === "waveform") {
+          const bufLen = analyserNode.fftSize;
+          const data = new Uint8Array(bufLen);
+          analyserNode.getByteTimeDomainData(data);
+          ctx.lineWidth = 2;
+          ctx.strokeStyle = color;
+          ctx.beginPath();
+          const dx = canvas.width / bufLen;
+          for (let i = 0; i < bufLen; i++) {
+            const y = (data[i] / 128) * (canvas.height / 2);
+            if (i === 0) ctx.moveTo(0, y);
+            else ctx.lineTo(i * dx, y);
+          }
+          ctx.stroke();
+        } else {
+          const bufLen = analyserNode.frequencyBinCount;
+          const data = new Uint8Array(bufLen);
+          analyserNode.getByteFrequencyData(data);
+          const barW = (canvas.width / bufLen) * 2.2;
+          let x = 0;
+          ctx.fillStyle = color;
+          for (let i = 0; i < bufLen; i++) {
+            const h = (data[i] / 255) * canvas.height;
+            ctx.fillRect(x, canvas.height - h, barW, h);
+            x += barW + 1;
+          }
+        }
+      }
+      draw();
+    }
+
+    // Curva OWID reale con asse X proporzionale agli anni (1900 -> 2025)
+    function drawChartOverlay() {
+      const canvas = document.getElementById("chart-overlay-canvas");
+      const ctx = canvas.getContext("2d");
+      canvas.width = canvas.parentElement.clientWidth;
+      canvas.height = canvas.parentElement.clientHeight;
+
+      const padX = 12, padY = 14;
+      const W = canvas.width - padX * 2;
+      const H = canvas.height - padY * 2;
+      const maxCo2 = 42000;
+
+      ctx.clearRect(0, 0, canvas.width, canvas.height);
+      ctx.beginPath();
+      ctx.strokeStyle = "rgba(181, 164, 139, 0.28)";
+      ctx.lineWidth = 2;
+
+      WORLD_CURVE.forEach((pt, idx) => {
+        const x = padX + ((pt.year - 1900) / (2025 - 1900)) * W;
+        const y = padY + H - (pt.co2 / maxCo2) * H;
+        if (idx === 0) ctx.moveTo(x, y);
+        else ctx.lineTo(x, y);
+      });
+      ctx.stroke();
+
+      // Punto attivo sull'anno selezionato
+      const curYear = ERA_DATA[currentDecade].yearNum;
+      const curPt = WORLD_CURVE.find(p => p.year === curYear);
+      if (curPt) {
+        const px = padX + ((curPt.year - 1900) / (2025 - 1900)) * W;
+        const py = padY + H - (curPt.co2 / maxCo2) * H;
+        ctx.fillStyle = ERA_DATA[currentDecade].baseColor;
+        ctx.beginPath();
+        ctx.arc(px, py, 4.5, 0, Math.PI * 2);
+        ctx.fill();
+      }
+    }
+
+    // Loop -> Vinile 12" inciso dal suono reale
+    function startArtwork() {
+      if (recording) return;
+      const hasSteps = sequenceTracks.some(row => row.some(v => v !== null));
+      if (!hasSteps) {
+        const b = document.getElementById("btn-artwork");
+        b.textContent = "AGGIUNGI STEP PRIMA";
+        setTimeout(() => { if (!recording) b.textContent = "◉ INCIDI VINILE"; }, 1600);
+        return;
+      }
+      const wasPlaying = isPlaying;
+      if (!isPlaying) startLoop();
+      document.getElementById("art-modal").classList.add("hidden");
+      const barMs = 16 * (60 / bpm / 4) * 1000;
+      recording = { frames: [], start: performance.now(), loopMs: barMs, stopAfter: !wasPlaying };
+    }
+
+    function captureFrame() {
+      if (!analyserNode) return;
+      const d = new Uint8Array(analyserNode.fftSize);
+      analyserNode.getByteTimeDomainData(d);
+      recording.frames.push(d);
+      const p = (performance.now() - recording.start) / recording.loopMs;
+      document.getElementById("btn-artwork").textContent = `INCISIONE ${Math.min(100, Math.round(p * 100))}%`;
+      if (p >= 1) {
+        const r = recording;
+        recording = null;
+        if (r.stopAfter && isPlaying) stopLoop();
+        document.getElementById("btn-artwork").textContent = "◉ INCIDI VINILE";
+        drawArtwork(r.frames);
+      }
+    }
+
+    function drawArtwork(frames) {
+      const cv = document.getElementById("art-canvas");
+      const W = 1200, ctx = cv.getContext("2d");
+      cv.width = cv.height = W;
+
+      const d = ERA_DATA[currentDecade];
+      const bg = tempColors(d.tempAnomaly);
+      const N = frames.length;
+      const cx = W / 2, cy = 585;
+      const R_DISC = 510, R_LABEL = 178, R_HOLE = 18;
+
+      // 1. Sfondo copertina / tappetino giradischi
+      const bgGrad = ctx.createRadialGradient(cx, cy, 120, cx, cy, W * 0.78);
+      bgGrad.addColorStop(0, bg.bottom);
+      bgGrad.addColorStop(0.55, bg.top);
+      bgGrad.addColorStop(1, "#0b0908");
+      ctx.fillStyle = bgGrad;
+      ctx.fillRect(0, 0, W, W);
+
+      // Scuro morbido per far risaltare il vinile nero
+      ctx.fillStyle = "rgba(10, 8, 7, 0.56)";
+      ctx.fillRect(0, 0, W, W);
+
+      // Footer catalogo sulla copertina
+      ctx.fillStyle = "rgba(243, 234, 216, 0.52)";
+      ctx.font = "bold 18px monospace";
+      ctx.textAlign = "left";
+      ctx.fillText("CARBON TEMPO · OWID CO₂ DATA ART", 54, 1164);
+      ctx.textAlign = "right";
+      ctx.fillText(`1750–2025 ARCHIVE · ${bpm} BPM`, W - 54, 1164);
+
+      // 2. Disco in vinile + ombra
+      ctx.save();
+      ctx.shadowColor = "rgba(0, 0, 0, 0.82)";
+      ctx.shadowBlur = 50;
+      ctx.shadowOffsetY = 18;
+      const discGrad = ctx.createRadialGradient(cx, cy, R_LABEL, cx, cy, R_DISC);
+      discGrad.addColorStop(0, "#1c1917");
+      discGrad.addColorStop(0.55, "#110f0e");
+      discGrad.addColorStop(1, "#080707");
+      ctx.fillStyle = discGrad;
+      ctx.beginPath();
+      ctx.arc(cx, cy, R_DISC, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.restore();
+
+      // Bordo smussato esterno e lead-in groove
+      ctx.strokeStyle = "rgba(255, 255, 255, 0.14)";
+      ctx.lineWidth = 2.5;
+      ctx.beginPath();
+      ctx.arc(cx, cy, R_DISC, 0, Math.PI * 2);
+      ctx.stroke();
+
+      ctx.strokeStyle = "rgba(255, 255, 255, 0.06)";
+      ctx.lineWidth = 1.2;
+      ctx.beginPath();
+      ctx.arc(cx, cy, 498, 0, Math.PI * 2);
+      ctx.stroke();
+
+      // 3. Micro-solchi statici di fondo e run-out groove
+      ctx.strokeStyle = "rgba(255, 255, 255, 0.032)";
+      ctx.lineWidth = 1;
+      for (let r = 194; r <= 494; r += 4) {
+        ctx.beginPath();
+        ctx.arc(cx, cy, r, 0, Math.PI * 2);
+        ctx.stroke();
+      }
+      ctx.strokeStyle = "rgba(255, 255, 255, 0.09)";
+      ctx.beginPath();
+      ctx.arc(cx, cy, 190, 0, Math.PI * 2);
+      ctx.stroke();
+
+      // 4. Solchi incisi dai dati audio (dall'esterno verso l'interno come la puntina)
+      ctx.save();
+      ctx.beginPath();
+      ctx.arc(cx, cy, 494, 0, Math.PI * 2, false);
+      ctx.arc(cx, cy, 196, 0, Math.PI * 2, true);
+      ctx.clip("evenodd");
+
+      ctx.globalCompositeOperation = "lighter";
+      ctx.lineWidth = 1.6;
+      ctx.lineJoin = "round";
+      const rOuter = 484, rInner = 204;
+
+      frames.forEach((f, i) => {
+        let sum = 0;
+        for (let j = 0; j < f.length; j++) {
+          const v = (f[j] - 128) / 128;
+          sum += v * v;
+        }
+        const L = Math.min(1, Math.sqrt(sum / f.length) * 3.2);
+        const t = d.tempAnomaly * (0.25 + 0.75 * (0.5 * i / Math.max(1, N) + 0.5 * L));
+        ctx.strokeStyle = tempColors(t).glow
+          .replace("rgb", "rgba")
+          .replace(")", `,${(0.16 + 0.62 * L).toFixed(2)})`);
+
+        const R = rOuter - ((rOuter - rInner) * i) / Math.max(1, N - 1);
+        const M = f.length;
+        ctx.beginPath();
+        for (let j = 0; j <= M; j++) {
+          const k = j <= M / 2 ? j : M - j;
+          const a = (j / M) * Math.PI * 2 - Math.PI / 2;
+          const r = R + ((f[k] - 128) / 128) * 18;
+          const x = cx + Math.cos(a) * r;
+          const y = cy + Math.sin(a) * r;
+          if (j) ctx.lineTo(x, y); else ctx.moveTo(x, y);
+        }
+        ctx.stroke();
+      });
+      ctx.restore();
+      ctx.globalCompositeOperation = "source-over";
+
+      // 5. Riflesso anisotropo realistico sul vinile
+      ctx.save();
+      ctx.beginPath();
+      ctx.arc(cx, cy, R_DISC, 0, Math.PI * 2);
+      ctx.clip();
+      ctx.translate(cx, cy);
+      ctx.rotate(-38 * Math.PI / 180);
+
+      for (const dir of [-1, 1]) {
+        const sheen = ctx.createLinearGradient(0, dir * 80, 0, dir * R_DISC);
+        sheen.addColorStop(0, "rgba(255, 255, 255, 0)");
+        sheen.addColorStop(0.5, "rgba(255, 255, 255, 0.085)");
+        sheen.addColorStop(1, "rgba(255, 255, 255, 0)");
+        ctx.fillStyle = sheen;
+        ctx.beginPath();
+        ctx.moveTo(0, 0);
+        ctx.arc(0, 0, R_DISC, dir > 0 ? 0.25 : Math.PI + 0.25, dir > 0 ? 1.15 : Math.PI + 1.15);
+        ctx.closePath();
+        ctx.fill();
+      }
+      ctx.restore();
+
+      // 6. Etichetta centrale in carta vintage con anello del mix combustibili
+      ctx.save();
+      ctx.shadowColor = "rgba(0, 0, 0, 0.55)";
+      ctx.shadowBlur = 16;
+      const lblGrad = ctx.createRadialGradient(cx, cy, 10, cx, cy, R_LABEL);
+      lblGrad.addColorStop(0, "#f3ead4");
+      lblGrad.addColorStop(0.85, "#e2d2b0");
+      lblGrad.addColorStop(1, "#cbb790");
+      ctx.fillStyle = lblGrad;
+      ctx.beginPath();
+      ctx.arc(cx, cy, R_LABEL, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.restore();
+
+      // Anello combustibili (Carbone / Petrolio / Gas)
+      ctx.save();
+      ctx.lineWidth = 9;
+      if (d.fuels) {
+        const fuelPalette = ["#475569", "#d97706", "#0284c7"];
+        const totalShare = d.fuels.reduce((a, b) => a + b, 0);
+        let angle = -Math.PI / 2;
+        d.fuels.forEach((share, idx) => {
+          const span = (share / totalShare) * Math.PI * 2;
+          ctx.strokeStyle = fuelPalette[idx];
+          ctx.beginPath();
+          ctx.arc(cx, cy, 165, angle, angle + span);
+          ctx.stroke();
+          angle += span;
+        });
+      } else {
+        ctx.setLineDash([12, 8]);
+        ctx.strokeStyle = "#ea580c";
+        ctx.beginPath();
+        ctx.arc(cx, cy, 165, 0, Math.PI * 2);
+        ctx.stroke();
+        ctx.setLineDash([]);
+      }
+      ctx.restore();
+
+      // Cornici interne dell'etichetta
+      ctx.strokeStyle = "rgba(26, 18, 11, 0.32)";
+      ctx.lineWidth = 1.5;
+      ctx.beginPath();
+      ctx.arc(cx, cy, 152, 0, Math.PI * 2);
+      ctx.stroke();
+
+      ctx.strokeStyle = "rgba(26, 18, 11, 0.14)";
+      ctx.lineWidth = 1;
+      ctx.beginPath();
+      ctx.arc(cx, cy, 74, 0, Math.PI * 2);
+      ctx.stroke();
+
+      // Tipografia etichetta (attorno al foro centrale)
+      ctx.textAlign = "center";
+      ctx.fillStyle = "#1a120b";
+      ctx.font = "bold 15px monospace";
+      ctx.fillText("CARBON TEMPO", cx, cy - 110);
+
+      ctx.fillStyle = "#5c4b37";
+      ctx.font = "12px monospace";
+      ctx.fillText("OWID CO₂ PRESSING", cx, cy - 90);
+
+      ctx.fillStyle = "#1a120b";
+      ctx.font = "bold 52px system-ui, sans-serif";
+      ctx.fillText(d.shortName, cx, cy - 36);
+
+      ctx.fillStyle = "#3a2c20";
+      ctx.font = "bold 13px monospace";
+      ctx.fillText("SIDE A", cx - 92, cy - 4);
+      ctx.fillText("33⅓ RPM", cx + 92, cy - 4);
+      ctx.font = "12px monospace";
+      ctx.fillStyle = "#5c4b37";
+      ctx.fillText(`${bpm} BPM`, cx - 92, cy + 14);
+      ctx.fillText(`CAT.${currentDecade}`, cx + 92, cy + 14);
+
+      ctx.fillStyle = "#1a120b";
+      ctx.font = "bold 16px monospace";
+      ctx.fillText(`${(d.co2Global / 1000).toFixed(2)} Gt CO₂ · +${d.tempAnomaly.toFixed(2)} °C`, cx, cy + 62);
+
+      ctx.fillStyle = "#4a3a28";
+      ctx.font = "11px monospace";
+      ctx.fillText(d.fuelShort, cx, cy + 88);
+
+      ctx.fillStyle = "#7a6448";
+      ctx.font = "bold 11px monospace";
+      ctx.fillText("STEREO · DATA ART", cx, cy + 114);
+
+      // 7. Foro centrale del vinile
+      ctx.fillStyle = "#0e0c0a";
+      ctx.beginPath();
+      ctx.arc(cx, cy, R_HOLE, 0, Math.PI * 2);
+      ctx.fill();
+
+      ctx.strokeStyle = "rgba(0, 0, 0, 0.72)";
+      ctx.lineWidth = 3;
+      ctx.beginPath();
+      ctx.arc(cx, cy, R_HOLE + 1, 0, Math.PI * 2);
+      ctx.stroke();
+
+      ctx.strokeStyle = "rgba(255, 255, 255, 0.22)";
+      ctx.lineWidth = 1.2;
+      ctx.beginPath();
+      ctx.arc(cx, cy, R_HOLE, 0.25 * Math.PI, 0.9 * Math.PI);
+      ctx.stroke();
+
+      document.getElementById("art-msg").textContent =
+        "Vinile inciso dal tuo loop (dall'esterno verso il centro): la forma dei solchi è l'onda sonora, il bagliore segue l'anomalia termica e l'anello sull'etichetta mostra il mix carbone/petrolio/gas dell'epoca.";
+      document.getElementById("art-modal").classList.remove("hidden");
+    }
+
+    // --- 8. EVENT LISTENERS & AVVIO ---
+    function setupEventListeners() {
+      document.getElementById("decade-selector-grid").addEventListener("click", (e) => {
+        const btn = e.target.closest(".era-btn");
+        if (!btn) return;
+        if (storyActive) stopStory();
+        setDecade(btn.dataset.decade, true);
+      });
+
+      window.addEventListener("keydown", (e) => {
+        if (e.repeat || /^(INPUT|TEXTAREA|SELECT)$/.test(e.target.tagName)) return;
+        if (e.code === "Space") {
+          e.preventDefault();
+          toggleSequencer();
+          return;
+        }
+        const pad = PAD_DEFINITIONS.find(p => p.key === e.key.toUpperCase());
+        if (pad) triggerPadSound(pad);
+      });
+
+      document.getElementById("btn-play-seq").addEventListener("click", toggleSequencer);
+      document.getElementById("btn-play-story").addEventListener("click", startStory);
+      document.getElementById("btn-load-preset").addEventListener("click", () => loadEraPreset(currentDecade));
+      document.getElementById("btn-clear-pattern").addEventListener("click", () => {
+        for (let col = 0; col < 4; col++) sequenceTracks[col].fill(null);
+        renderSequencerGrid();
+      });
+
+      document.getElementById("input-bpm").addEventListener("change", (e) => {
+        bpm = Math.max(60, Math.min(175, parseInt(e.target.value, 10) || 100));
+        e.target.value = bpm;
+        updateDelayTime();
+      });
+
+      document.getElementById("btn-scale-toggle").addEventListener("click", (e) => {
+        musicalScaleOn = !musicalScaleOn;
+        e.target.textContent = musicalScaleOn ? "SCALA: DO MINORE" : "SCALA: HZ GREZZI";
+        renderMPCGrid();
+      });
+
+      document.getElementById("slider-drive").addEventListener("input", (e) => {
+        document.getElementById("label-drive").textContent = `${e.target.value}%`;
+        updateWarmthCurve(+e.target.value);
+      });
+
+      document.getElementById("slider-filter").addEventListener("input", (e) => {
+        const freq = parseFloat(e.target.value);
+        document.getElementById("label-filter").textContent = `${(freq / 1000).toFixed(1)} kHz`;
+        if (masterFilter && audioCtx) {
+          masterFilter.frequency.setTargetAtTime(freq, audioCtx.currentTime, 0.03);
+        }
+      });
+
+      document.getElementById("btn-viz-toggle").addEventListener("click", (e) => {
+        vizMode = vizMode === "waveform" ? "spectrum" : "waveform";
+        e.target.textContent = vizMode === "waveform" ? "MODO: ONDA" : "MODO: SPETTRO";
+      });
+
+      document.getElementById("btn-artwork").addEventListener("click", startArtwork);
+      document.getElementById("btn-art-again").addEventListener("click", startArtwork);
+      document.getElementById("btn-art-close").addEventListener("click", () => {
+        document.getElementById("art-modal").classList.add("hidden");
+      });
+
+      document.getElementById("btn-art-save").addEventListener("click", () => {
+        const canvas = document.getElementById("art-canvas");
+        canvas.toBlob((blob) => {
+          if (!blob) return;
+          const url = URL.createObjectURL(blob);
+          const a = document.createElement("a");
+          a.href = url;
+          a.download = `carbon-tempo-vinile-${currentDecade}.png`;
+          document.body.appendChild(a);
+          a.click();
+          a.remove();
+          URL.revokeObjectURL(url);
+        }, "image/png");
+      });
+
+      const keyModal = document.getElementById("keymap-modal");
+      document.getElementById("btn-help-modal").addEventListener("click", () => keyModal.classList.remove("hidden"));
+      document.getElementById("btn-close-modal").addEventListener("click", () => keyModal.classList.add("hidden"));
+      document.getElementById("btn-modal-gotit").addEventListener("click", () => keyModal.classList.add("hidden"));
+    }
+
+    async function initApp() {
+      try {
+        const res = await fetch("sampler_data.json");
+        if (res.ok) {
+          const json = await res.json();
+          if (Array.isArray(json) && json.length === 16) samplerRows = json;
+        }
+      } catch (_) {
+        // Fallback inline attivo quando aperto via file://
+      }
+      buildPads();
+      renderColumnHeaders();
+      setupEventListeners();
+      setDecade("1900", true);
+      setupCanvasVisualizer();
+      animateBackground();
+    }
+
+    window.addEventListener("DOMContentLoaded", initApp);
+  </script>
+</body>
+</html>

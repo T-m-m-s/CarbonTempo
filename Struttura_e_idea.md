@@ -154,23 +154,24 @@ I massimi (e il minimo) sono calcolati sulle sole 16 righe.
 freq_hz = round(65 + (co2_per_capita / max(co2_per_capita, na.rm = TRUE)) * 520, 1)
 ```
 
-**Versione logaritmica attuale nell'Rmd (`freq_hz_log`): sbagliata**
+**Versione percettiva / lineare in semitoni (`freq_hz_log`, scelta per l'Rmd)**
 
 ```r
-freq_hz_log = round(65 * (585 / 65)^(co2_per_capita / max(co2_per_capita, na.rm = TRUE)), 1)
+pc_norm = co2_per_capita / max(co2_per_capita, na.rm = TRUE)
+freq_hz_log = round(65 * (585 / 65)^pc_norm, 1)
 ```
 
-L'esponente è proporzionale a `co2_per_capita`, non al suo logaritmo. La formula è quindi esponenziale rispetto al dato: a uguali *differenze* di emissioni corrispondono uguali intervalli musicali, mentre noi vogliamo che accada per uguali *rapporti*. La frase dell'Rmd sui rapporti non è vera con questa formula.
+L'esponente è proporzionale a `co2_per_capita`, quindi la frequenza cresce in modo esponenziale in Hz, cioè **lineare in semitoni**: ogni tonnellata pro capite in più alza il suono sempre dello stesso intervallo musicale (circa 2,7 semitoni). È l'equivalente sonoro di un asse lineare: lascia Africa e Asia a basse emissioni ben vicine allo zero e rende evidente all'orecchio la disuguaglianza assoluta rispetto a Europa e Nord America. Il testo dell'Rmd è stato aggiornato per descrivere esattamente questa proprietà.
 
-**Versione corretta (da inserire nell'Rmd)**
+**Alternativa log-log (solo se si vogliono confrontare rapporti relativi)**
 
 ```r
 log_norm = (log(co2_per_capita) - log(min(co2_per_capita, na.rm = TRUE))) /
-           (log(max(co2_per_capita, na.rm = TRUE)) - log(min(co2_per_capita, na.rm = TRUE))),
-freq_hz_log = round(65 * (585 / 65)^log_norm, 1)
+           (log(max(co2_per_capita, na.rm = TRUE)) - log(min(co2_per_capita, na.rm = TRUE)))
+freq_hz_log_ratio = round(65 * (585 / 65)^log_norm, 1)
 ```
 
-`log_norm` porta il logaritmo del dato tra 0 (valore minimo, 65 Hz) e 1 (valore massimo, 585 Hz). Così lo stesso rapporto tra due emissioni dà sempre lo stesso intervallo. Richiede valori maggiori di zero.
+Questa alternativa è l'equivalente sonoro di un asse logaritmico (`scale_y_log10`): a uguali *rapporti* corrispondono uguali intervalli musicali, ma fa sembrare Africa 2025 (1,0 t/cap, 246,6 Hz) molto più vicina al Nord America 1990 (14,2 t/cap, 585 Hz) di quanto non sia in termini assoluti. Per questo preferiamo la versione lineare in semitoni.
 
 **Confronto sui 16 pad** (min 0,017 e max 14,158 t per persona)
 

@@ -1,0 +1,405 @@
+---
+title: "CarbonTempo — Il suono delle emissioni"
+subtitle: "CO₂ come data art sonora e visiva"
+author: "Samuele Antonello 162640, Tommaso Trentin 167340, Marco Ungaro ..."
+date: "`r format(Sys.Date(), '%d/%m/%Y')`"
+output:
+  ioslides_presentation:
+    widescreen: true
+    smaller: true
+---
+
+<style>
+slides > slide,
+slides > slide.title-slide,
+slides > slide.backdrop {
+  background: #14110f !important;
+  background-image: none !important;
+  color: #f3ead8 !important;
+  font-family: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+}
+slides > slide:not(.nobackground):before { display: none !important; }
+slides > slide:not(.nobackground):after { color: #7c6d58 !important; }
+
+slides > slide h1,
+slides > slide h2,
+slides > slide h3 {
+  color: #e3a845 !important;
+  text-shadow: none !important;
+  letter-spacing: -0.5px;
+}
+.title-slide hgroup h1 { color: #f3ead8 !important; letter-spacing: -1px; }
+.title-slide hgroup h2 { color: #e3a845 !important; }
+.title-slide hgroup p { color: #b5a48b !important; }
+
+slides > slide p,
+slides > slide li {
+  color: #e8decb !important;
+  line-height: 1.5;
+}
+slides > slide li { margin-bottom: 0.55em; }
+slides > slide ul > li:before { color: #e3a845 !important; }
+
+a { color: #38bdf8 !important; border-bottom-color: rgba(56, 189, 248, 0.4) !important; }
+strong { color: #fbbf24 !important; }
+
+/* Tabelle dark-studio (sovrascrive table.rmdtable e bande bianche ioslides) */
+table,
+table.rmdtable {
+  width: 100%;
+  border-collapse: collapse !important;
+  border-spacing: 0 !important;
+  margin: 14px 0 22px 0 !important;
+  border-bottom: 1px solid #4a3c2f !important;
+  font-size: 0.88em;
+}
+table th,
+table.rmdtable th {
+  background: #26201b !important;
+  background-image: none !important;
+  color: #e3a845 !important;
+  font-weight: 700 !important;
+  text-transform: uppercase;
+  font-size: 0.76em;
+  letter-spacing: 0.05em;
+  padding: 12px 14px !important;
+  border-bottom: 2px solid #e3a845 !important;
+  border-right: none !important;
+  text-shadow: none !important;
+}
+table tr,
+table.rmdtable tr,
+table.rmdtable tr:nth-child(odd) {
+  background: #181411 !important;
+}
+table tr:nth-child(even),
+table.rmdtable tr:nth-child(even) {
+  background: #211c17 !important;
+}
+table td,
+table.rmdtable td,
+table.rmdtable tr > td:first-child {
+  color: #f3ead8 !important;
+  padding: 11px 14px !important;
+  border-bottom: 1px solid #2e251e !important;
+  border-right: none !important;
+}
+table.rmdtable tr > td:first-child {
+  font-weight: 600 !important;
+}
+
+/* Blocchi di codice e prettyprint */
+pre,
+pre.prettyprint {
+  background: #1d1814 !important;
+  color: #f3ead8 !important;
+  border: 1px solid #3c3024 !important;
+  border-left: 3px solid #e3a845 !important;
+  border-radius: 6px;
+  padding: 14px 18px !important;
+  margin: 12px 0 18px 0 !important;
+  left: 0 !important;
+  width: 100% !important;
+  box-sizing: border-box;
+}
+.pln { color: #f3ead8 !important; }
+.pun { color: #b5a48b !important; }
+.kwd { color: #e3a845 !important; font-weight: 700; }
+.lit { color: #38bdf8 !important; }
+.str { color: #34d399 !important; }
+.com { color: #8c7b66 !important; font-style: italic; }
+
+code {
+  background: rgba(227, 168, 69, 0.14) !important;
+  color: #f7d58b !important;
+  border: none !important;
+  padding: 2px 6px;
+  border-radius: 4px;
+  font-size: 0.88em;
+}
+pre code {
+  background: transparent !important;
+  color: inherit !important;
+  padding: 0;
+}
+
+.small {
+  font-size: 0.8em;
+  color: #b5a48b !important;
+  margin-top: 14px;
+}
+</style>
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(
+  echo = FALSE,
+  message = FALSE,
+  warning = FALSE,
+  fig.width = 9,
+  fig.height = 4.5,
+  dev = "png"
+)
+library(tidyverse)
+library(jsonlite)
+
+LINK_SAMPLER <- "sampler.html"
+
+palette_studio <- c("#38bdf8", "#fbbf24", "#f97316", "#34d399", "#fb7185", "#94a3b8")
+theme_studio <- function() {
+  theme_minimal(base_size = 13) +
+    theme(
+      plot.background = element_rect(fill = "#14110f", colour = NA),
+      panel.background = element_rect(fill = "#1b1714", colour = NA),
+      panel.grid = element_line(colour = "#2f261f"),
+      text = element_text(colour = "#f3ead8"),
+      axis.text = element_text(colour = "#b5a48b"),
+      legend.background = element_rect(fill = "#14110f", colour = NA),
+      legend.key = element_rect(fill = "#14110f", colour = NA)
+    )
+}
+
+# --- Dati (stessa pipeline e pulizia di progetto.Rmd) ---
+raw_data <- read_csv("owid_co2.csv")
+
+data_selected <- raw_data |>
+  select(
+    country, iso_code, year, population,
+    co2, co2_per_capita, cumulative_co2,
+    coal_co2, oil_co2, gas_co2
+  )
+
+data_countries <- data_selected |>
+  filter(!is.na(iso_code)) |>
+  mutate(
+    across(
+      c(coal_co2, oil_co2, gas_co2),
+      \(x) if_else(is.na(x) & !is.na(co2), 0, x)
+    )
+  )
+
+continents_list <- c(
+  "World", "Africa", "Asia", "Europe",
+  "North America", "South America", "Oceania"
+)
+
+data_continents <- data_selected |>
+  filter(country %in% continents_list)
+
+target_regions <- c("Europe", "North America", "Asia", "Africa")
+target_years <- c(1900, 1950, 1990, 2025)
+freq_min <- 65
+freq_max <- 585
+
+sampler_pads <- data_continents |>
+  filter(country %in% target_regions, year %in% target_years) |>
+  mutate(
+    across(c(coal_co2, oil_co2, gas_co2), \(x) replace_na(x, 0)),
+    country = factor(country, levels = target_regions),
+    fuel_total = coal_co2 + oil_co2 + gas_co2,
+    coal_share = round(if_else(fuel_total > 0, coal_co2 / fuel_total, 0), 3),
+    oil_share = round(if_else(fuel_total > 0, oil_co2 / fuel_total, 0), 3),
+    gas_share = round(if_else(fuel_total > 0, gas_co2 / fuel_total, 0), 3),
+    dominant_fuel = case_when(
+      fuel_total == 0 ~ "unknown",
+      coal_co2 >= oil_co2 & coal_co2 >= gas_co2 ~ "coal",
+      oil_co2 >= coal_co2 & oil_co2 >= gas_co2 ~ "oil",
+      .default = "gas"
+    ),
+    pc_norm = co2_per_capita / max(co2_per_capita, na.rm = TRUE),
+    co2_norm = sqrt(co2) / sqrt(max(co2, na.rm = TRUE)),
+    cum_norm = cumulative_co2 / max(cumulative_co2, na.rm = TRUE),
+    freq_hz = round(freq_min + pc_norm * (freq_max - freq_min), 1),
+    freq_hz_log = round(freq_min * (freq_max / freq_min)^pc_norm, 1),
+    gain_norm = round(0.2 + 0.8 * co2_norm, 3),
+    decay_sec = round(0.25 + 2.2 * cum_norm, 2)
+  ) |>
+  arrange(country, year)
+```
+
+## L'idea
+
+**Domanda:** si può *ascoltare* la responsabilità storica delle emissioni di CO₂?
+
+- Partiamo da un dataset reale (**Our World in Data – CO₂ Data**)
+- Lo traduciamo in **parametri sonori**: altezza, volume, durata/riverbero, carattere timbrico
+- Costruiamo un **sampler interattivo** in cui ogni pad è un continente in un anno chiave e ogni loop può essere **inciso su un vinile 12"** guidato dai dati
+
+<p class="small">Data art: i numeri non restano solo su un asse cartesiano, ma diventano ritmo, peso e persistenza sonora.</p>
+
+## I dati e la pulizia
+
+- **Our World in Data – CO₂ dataset**: 56.269 righe × 79 colonne, dal 1750 al 2025
+- Variabili chiave: `population`, `co2`, `co2_per_capita`, `cumulative_co2`, `coal_co2`, `oil_co2`, `gas_co2`
+- Pulizia in `tidyverse`:
+    - paesi veri separati tramite `iso_code` (223 entità, 220 con CO₂ nel 2025; esclusi Kosovo e trasporti internazionali)
+    - valori `NA` dei combustibili sostituiti con `0` **solo** quando `co2` è noto
+    - tabella separata `data_continents` (`World` + 6 continenti) per evitare doppi conteggi
+
+## Responsabilità storica cumulativa (1750–2025)
+
+```{r}
+data_countries |>
+  filter(year == 2025, !is.na(cumulative_co2)) |>
+  slice_max(cumulative_co2, n = 10) |>
+  mutate(cumulative_gt = cumulative_co2 / 1000) |>
+  ggplot(aes(x = fct_reorder(country, cumulative_gt), y = cumulative_gt)) +
+  geom_col(fill = palette_studio[1]) +
+  geom_text(aes(label = round(cumulative_gt, 0)), hjust = -0.2, size = 3.4, colour = "#f3ead8") +
+  coord_flip() +
+  expand_limits(y = 485) +
+  labs(x = NULL, y = "CO₂ cumulativa (miliardi di tonnellate, Gt)") +
+  theme_studio()
+```
+
+<p class="small">Nel 2025 la Cina guida le emissioni annuali (12.417 Mt), ma sul piano cumulativo gli USA restano primi (439 Gt).</p>
+
+## Popolazione vs CO₂ pro capite (2025)
+
+```{r}
+world_pc_2025 <- data_continents |>
+  filter(country == "World", year == 2025) |>
+  pull(co2_per_capita)
+
+data_countries |>
+  filter(year == 2025, !is.na(co2_per_capita), !is.na(population), population > 1e6) |>
+  mutate(label = if_else(co2 > 1500 | co2_per_capita > 18 | country == "Italy", country, "")) |>
+  ggplot(aes(x = population, y = co2_per_capita, size = co2)) +
+  geom_hline(yintercept = world_pc_2025, linetype = "dashed", colour = "#b5a48b") +
+  geom_point(alpha = 0.72, colour = palette_studio[3]) +
+  geom_text(aes(label = label), vjust = -0.8, size = 3.1, colour = "#f3ead8", check_overlap = TRUE) +
+  scale_x_log10(labels = scales::label_number(scale_cut = scales::cut_short_scale())) +
+  scale_size_continuous(range = c(2, 14), guide = "none") +
+  labs(
+    subtitle = paste0("Paesi > 1M abitanti · Linea tratteggiata: media mondiale (", round(world_pc_2025, 2), " t/ab)"),
+    x = "Popolazione (scala logaritmica)",
+    y = "CO₂ pro capite (tonnellate / persona)"
+  ) +
+  theme_studio()
+```
+
+## Continenti e mix di combustibili
+
+```{r}
+data_continents |>
+  filter(country %in% target_regions, year >= 1900) |>
+  ggplot(aes(x = year, y = co2, colour = country)) +
+  geom_line(linewidth = 1.3) +
+  scale_colour_manual(values = palette_studio[1:4], name = NULL) +
+  scale_y_continuous(labels = scales::comma) +
+  labs(x = "Anno", y = "Emissioni annuali (milioni di tonnellate)") +
+  theme_studio()
+```
+
+<p class="small">Dal 2000 l'Asia accelera fino a 23.572 Mt (2025). Nel frattempo il mix fossile mondiale somma carbone (40,3%), petrolio (32,9%) e gas (20,7%).</p>
+
+## Dal dato al suono: la mappatura
+
+| Dato OWID | Parametro sonoro | Significato |
+|---|---|---|
+| `co2_per_capita` | **Altezza** (`freq_hz_log`) | Più emissioni per persona → nota più acuta |
+| `co2` (annuale) | **Volume** (`gain_norm`) | Radice quadrata del totale → peso sonoro leggibile |
+| `cumulative_co2` | **Durata / Riverbero** (`decay_sec`) | La CO₂ persiste per secoli → coda sonora che resta |
+| `coal / oil / gas_share` | **Carattere timbrico** | Le quote dei 3 combustibili modellano filtro e armoniche |
+
+Quattro anni (**1900, 1950, 1990, 2025**) × quattro continenti = **16 pad** in `sampler_data.json`.
+
+## Le formule e la scala percettiva
+
+```{r, echo=TRUE, eval=FALSE}
+pc_norm     <- co2_per_capita / max(co2_per_capita, na.rm = TRUE)
+freq_hz_log <- round(65 * (585 / 65)^pc_norm, 1)
+gain_norm   <- round(0.2 + 0.8 * (sqrt(co2) / sqrt(max(co2, na.rm = TRUE))), 3)
+decay_sec   <- round(0.25 + 2.2 * (cumulative_co2 / max(cumulative_co2, na.rm = TRUE)), 2)
+```
+
+- **Perché `freq_hz_log`:** l'orecchio percepisce l'altezza in semitoni/ottave; questa formula cresce esponenzialmente in Hz ed è quindi **lineare in semitoni** (~2,7 semitoni per ogni `+1 t/persona`)
+- È l'equivalente sonoro di un asse lineare: lascia evidenti le differenze assolute tra continenti
+- La radice quadrata su `gain_norm` evita che i giganti emissivi azzerino l'Africa del 1900
+
+## Come evolve l'altezza percettiva (`freq_hz_log`)
+
+```{r}
+sampler_pads |>
+  ggplot(aes(x = year, y = freq_hz_log, colour = country)) +
+  geom_line(linewidth = 1.2) +
+  geom_point(size = 3.2) +
+  scale_colour_manual(values = palette_studio[1:4], name = NULL) +
+  scale_x_continuous(breaks = target_years) +
+  labs(x = "Anno", y = "Frequenza percettiva (Hz)") +
+  theme_studio()
+```
+
+<p class="small">Nord America ed Europa salgono presto verso l'alto registro; l'Africa resta stabilmente sotto gli 80 Hz.</p>
+
+## Un continente, uno strumento
+
+Per suonare insieme come una vera band, ogni colonna del sampler pilota uno **strumento sintetizzato** (intercambiabile dal menu) con panning stereo geografico:
+
+```{r}
+sampler_pads |>
+  group_by(Continente = country) |>
+  summarise(
+    `Freq. min (Hz)` = min(freq_hz_log),
+    `Freq. max (Hz)` = max(freq_hz_log),
+    .groups = "drop"
+  ) |>
+  mutate(
+    `Strumento default` = c(
+      "Basso Analog (Europe)",
+      "Synth / Rhodes (N. America)",
+      "Kick / Sub 808 (Asia)",
+      "Snare / Perc + Hat (Africa)"
+    )[as.integer(Continente)],
+    `Pan Stereo` = c("Sinistra (-22%)", "Sinistra (-55%)", "Destra (+55%)", "Destra (+22%)")[as.integer(Continente)]
+  ) |>
+  knitr::kable()
+```
+
+<p class="small">Colonne disposte da Ovest a Est (o per ruolo ritmico): il bilanciamento stereo fa percepire lo spostamento geografico.</p>
+
+## Scelte audio: fedeltà e ascoltabilità
+
+- **Scala musicale opzionale (`SCALA: DO MINORE` / `HZ GREZZI`):** in modalità musicale i pad vengono agganciati alla scala di Do minore con progressioni armoniche su 2 battute e accordi a 3 voci; con un clic si può tornare agli Hz grezzi puri
+- **Riverbero al posto della confusione:** la coda lunga di `cumulative_co2` alimenta un riverbero stereo (`ConvolverNode`) + delay sincronizzato ai BPM, lasciando netti i transienti di kick e basso
+- **Zero clipping ("fritto"):** saturazione calda normalizzata (`tanh`) e **Limiter master** (`DynamicsCompressorNode`) garantiscono un suono pulito anche nel 2025 e 2050
+
+## Il sampler e l'incisione del vinile
+
+- **16 pad live** (mouse/touch/tastiera `1–V`) + **sequencer a 16 step** (1 battuta in sedicesimi con swing)
+- **`PLAY STORIA (1900→2050)`:** attraversa automaticamente tutte le 5 epoche in sequenza
+- **`INCIDI VINILE`:** registra un giro del loop e genera un **vinile 12" PNG** (solchi incisi dall'esterno verso l'interno, bagliore legato alla temperatura, etichetta con l'anello del mix carbone/petrolio/gas)
+
+```{r, results='asis'}
+if (file.exists("screenshot_sampler.png")) {
+  cat('<p><img src="screenshot_sampler.png" style="max-height:210px; border:1px solid #4a3c2f; border-radius:6px;"></p>')
+} else {
+  cat('<p class="small">[Opzionale: salva uno screenshot come <code>screenshot_sampler.png</code> per mostrarlo qui]</p>')
+}
+cat(sprintf('<p>Apri il sampler locale (100%% offline): <a href="%s">%s</a></p>', LINK_SAMPLER, LINK_SAMPLER))
+```
+
+## Cosa si ascolta nelle 5 epoche (Demo live)
+
+| Epoca | BPM | Pattern e sonorità | Significato |
+|---|---|---|---|
+| **1900** | 86 BPM | Boom-bap essenziale, carbone al 95,7% | Spazio, pochi colpi puliti |
+| **1950** | 100 BPM | Groove sincopato, entra il petrolio (26,1%) | L'industria prende ritmo |
+| **1990** | 116 BPM | Breakbeat serrato, petrolio al 40,6% | Grande accelerazione globale |
+| **2025** | 128 BPM | Elettronica densa + pad del 1990 in sottofondo | Il passato accumulato pesa sul presente |
+| **2050** | 140 BPM | Climax teso, leggera scordatura (+2.5 °C) | Scenario proiettivo, saturazione |
+
+## Limiti, onestà dei dati e domande finali
+
+- **Trasparenza dei dati:** totali globali, pro capite, curva 1900–2025 e quote dei combustibili nel sampler arrivano dai **dati reali OWID**; esterni sono solo i riferimenti di anomalia termica (NASA GISTEMP / HadCRUT) e la proiezione narrativa **2050**
+- **1. La data art rivela pattern nuovi?** Sì: i grafici congelano il tempo sullo spazio, mentre il suono rende percepibili **durata cumulativa, densità e saturazione simultanea**
+- **2. L'emozione è comprensione legittima?** Sì, purché nasca da mappature trasparenti: trasforma numeri astratti (`38.995 Mt` nel 2025) in esperienza fisica, superando lo *psychic numbing*
+
+## Grazie — Demo Live
+
+**CarbonTempo: Il suono delle emissioni**
+
+- Analisi riproducibile: `progetto.Rmd` → `progetto.html`
+- Opera interattiva offline: `sampler.html` (alimentata da `sampler_data.json`)
+- Dati: Our World in Data, *CO₂ and Greenhouse Gas Emissions*
+
+<p class="small">Samuele Antonello 162640, Tommaso Trentin 167340, ...</p>

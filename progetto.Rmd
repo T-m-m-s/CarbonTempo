@@ -1,7 +1,7 @@
 ---
 title: "The carbon footprint of nations: analisi dei dati OWID CO2"
-author: "Samuele Antonello 162640"
-date: "2026-11-11"
+author: "Samuele Antonello 162640, Tommaso Trentin 167340, Marco Ungaro ..."
+date: "`r format(Sys.Date(), '%d/%m/%Y')`"
 output:
   prettydoc::html_pretty:
     theme: cayman
@@ -9,32 +9,39 @@ output:
 ---
 
 ```{r setup, include=FALSE}
-knitr::opts_chunk$set(echo = TRUE, message = FALSE, warning = FALSE)
+knitr::opts_chunk$set(
+  echo = TRUE,
+  message = FALSE,
+  warning = FALSE,
+  fig.width = 8.5,
+  fig.height = 5
+)
 ```
 
 # 0. Obiettivo e struttura del lavoro
 
 In questo documento analizziamo il dataset **Our World in Data (OWID) – CO₂ and Greenhouse Gas Emissions**, che raccoglie le emissioni di CO₂ di paesi e regioni del mondo per più di due secoli.
 
-Il lavoro segue la classica *pipeline* della data science:
+Il lavoro segue la *pipeline* standard della data science:
 
-1.  **Importazione**: leggiamo il file CSV in R.
-2.  **Pulizia**: teniamo solo le colonne utili e separiamo i *paesi* dagli *aggregati* (mondo, continenti).
-3.  **Analisi descrittiva**: calcoliamo qualche statistica per capire chi emette di più, in totale e per persona.
-4.  **Visualizzazione**: costruiamo tre grafici con `ggplot2`.
-5.  **Comunicazione / arte dei dati**: trasformiamo alcuni dati in parametri sonori (altezza, volume, durata del suono) da usare in un *sampler*. Questa è la base della nostra opera artistica basata sull'**udito**.
+1. **Importazione**: leggiamo il file CSV in R.
+2. **Pulizia**: selezioniamo le colonne utili, separiamo i *paesi* dagli *aggregati* (mondo, continenti) e verifichiamo l'assenza di doppi conteggi.
+3. **Analisi descrittiva**: calcoliamo le statistiche di sintesi per osservare la disuguaglianza tra paesi, in termini totali e pro capite.
+4. **Visualizzazione**: costruiamo quattro grafici con `ggplot2` (responsabilità cumulativa, peso pro capite, dinamica per continente e mix dei combustibili).
+5. **Comunicazione / arte dei dati**: traduciamo i dati in parametri sonori (altezza, volume, durata, mix dei combustibili) per alimentare il nostro *sampler* interattivo basato sull'**udito**.
+6. **Riflessione critica**: discutiamo cosa aggiunge la data art alla visualizzazione convenzionale e il ruolo della comprensione emotiva.
 
 Unità di misura da ricordare: `co2` è in **milioni di tonnellate (Mt)**, `co2_per_capita` in **tonnellate per persona**, `cumulative_co2` in **milioni di tonnellate** accumulate dal 1750 a oggi.
 
 # 1. Importazione dei dati
 
-Carichiamo `tidyverse` (che include già `readr`, `dplyr`, `ggplot2`, `tidyr`...) e `jsonlite`, che useremo alla fine per esportare i dati in formato JSON. Il file `owid_co2.csv` deve trovarsi **nella stessa cartella** di questo `.Rmd`.
+Carichiamo `tidyverse` (che include `readr`, `dplyr`, `ggplot2`, `tidyr`, `forcats`) e `jsonlite`, usato alla fine per esportare i parametri del sampler in formato JSON. Il file `owid_co2.csv` deve trovarsi **nella stessa cartella** di questo `.Rmd`.
 
-```{r}
+```{r import}
 library(tidyverse)
 library(jsonlite)
 
-raw_data = read_csv("owid_co2.csv")
+raw_data <- read_csv("owid_co2.csv")
 ```
 
 Il dataset contiene **`r nrow(raw_data)` righe** e **`r ncol(raw_data)` colonne**, con osservazioni che vanno dal **`r min(raw_data$year)`** al **`r max(raw_data$year)`**. Ogni riga corrisponde a *una nazione o regione in un certo anno*. Prima di analizzarlo dobbiamo pulirlo.
@@ -43,148 +50,179 @@ Il dataset contiene **`r nrow(raw_data)` righe** e **`r ncol(raw_data)` colonne*
 
 ## 2.1 Selezione delle colonne
 
-Le colonne sono tantissime, ma per la nostra storia ne servono poche: chi (`country`, `iso_code`), quando (`year`), quanti sono (`population`) e quanto emettono (`co2`, `co2_per_capita`, `cumulative_co2` e le emissioni per combustibile).
+Le colonne originali sono 79, ma per la nostra analisi ne servono 10: chi (`country`, `iso_code`), quando (`year`), quanti sono (`population`) e quanto emettono (`co2`, `co2_per_capita`, `cumulative_co2` e le tre principali fonti fossili `coal_co2`, `oil_co2`, `gas_co2`).
 
-```{r}
-data_selected = raw_data |>
-  select(country, iso_code, year, population, co2, co2_per_capita,
-         cumulative_co2, coal_co2, oil_co2, gas_co2)
+```{r select-columns}
+data_selected <- raw_data |>
+  select(
+    country, iso_code, year, population,
+    co2, co2_per_capita, cumulative_co2,
+    coal_co2, oil_co2, gas_co2
+  )
 ```
 
-## 2.2 Paesi veri e aggregati: un controllo importante
+## 2.2 Paesi veri e aggregati: evitare i doppi conteggi
 
-Nella colonna `country` non ci sono solo i paesi, ma anche aggregati come "World", "Europe" o "Asia": se li sommassimo ai paesi conteremmo le stesse emissioni più volte. Gli aggregati non hanno un `iso_code`, quindi teniamo solo le righe in cui è presente e controlliamo quali nomi rimangono.
+Nella colonna `country` non ci sono solo i singoli stati, ma anche aggregati come `"World"`, `"Europe"`, `"Asia"` o gruppi di reddito: mescolandoli ai paesi conteremmo le stesse emissioni più volte. Gli aggregati non hanno un `iso_code`, quindi teniamo solo le righe con codice presente.
 
-```{r}
+*Nota sui limiti del filtro:* restano esclusi i pochissimi territori privi di codice ISO (come il Kosovo) e le voci non attribuite a singoli stati (aviazione e navigazione internazionali). Per i totali globali useremo quindi sempre la riga `World`.
+
+```{r filter-countries}
 data_countries <- data_selected |>
-  filter(!is.na(iso_code)) 
-
-data_countries
-
-data_countries |>
-  distinct(country,iso_code)
-```
-
-Teniamo quindi le righe con `iso_code` valido.
-
-Nelle colonne dei combustibili (carbone, petrolio, gas) ci sono molti valori mancanti (`NA`). Se il totale `co2` esiste, assumiamo che il valore mancante voglia dire "nessuna emissione registrata" e lo sostituiamo con 0. Se invece manca anche `co2`, lasciamo `NA`, perché per quella riga non abbiamo informazioni.
-
-```{r}
-data_countries = data_countries |>
+  filter(!is.na(iso_code)) |>
   mutate(
-    coal_co2 = if_else(is.na(coal_co2) & !is.na(co2), 0, coal_co2),
-    oil_co2 = if_else(is.na(oil_co2) & !is.na(co2), 0, oil_co2),
-    gas_co2 = if_else(is.na(gas_co2) & !is.na(co2), 0, gas_co2)
+    across(
+      c(coal_co2, oil_co2, gas_co2),
+      \(x) if_else(is.na(x) & !is.na(co2), 0, x)
+    )
   )
 
-data_countries
+tibble(
+  Righe = nrow(data_countries),
+  Paesi_e_territori = n_distinct(data_countries$country),
+  Codici_ISO = n_distinct(data_countries$iso_code)
+) |>
+  knitr::kable()
 ```
+
+Per i tre combustibili (carbone, petrolio, gas), dove il totale `co2` è noto ma il singolo combustibile è `NA`, assumiamo "nessuna emissione registrata" e sostituiamo con `0`. Dove manca anche `co2`, lasciamo `NA` per non inventare dati inesistenti. Va ricordato inoltre che `coal_co2 + oil_co2 + gas_co2` copre circa il **94%** del totale mondiale del 2025: il restante ~6% deriva da cemento, flaring e altri processi industriali.
 
 ## 2.3 Dataset separato per mondo e continenti
 
-Creiamo un secondo dataset con **solo gli aggregati** che ci interessano: il totale mondiale e i continenti. Serve per confrontare grandi aree del pianeta senza dover sommare i paesi a mano.
+Creiamo una tabella separata con **solo gli aggregati geografici** principali (`World` e i sei continenti), così da confrontare le grandi aree senza sommare i paesi a mano e senza rischio di doppi conteggi.
 
-```{r}
-data_continents = data_selected |>
-  filter(country %in% c("World", "Africa", "Asia", "Europe",
-                        "North America", "South America", "Oceania"))
+```{r filter-continents}
+continents_list <- c(
+  "World", "Africa", "Asia", "Europe",
+  "North America", "South America", "Oceania"
+)
 
-data_continents
+data_continents <- data_selected |>
+  filter(country %in% continents_list)
 
 data_continents |>
-  distinct(country)
+  distinct(country) |>
+  knitr::kable(col.names = "Aggregati selezionati")
 ```
 
 # 3. Statistiche descrittive
 
-Vogliamo capire la **responsabilità storica** delle emissioni. Partiamo dall'ultimo anno disponibile (2025) e calcoliamo, per i paesi: numero di paesi, media, mediana e massimo delle emissioni totali, e media e mediana di quelle pro capite.
+Partiamo dall'ultimo anno disponibile (**2025**) per misurare quanto le emissioni siano distribuite in modo disuguale tra i paesi. Indichiamo sia il totale delle righe con codice ISO (`Paesi`) sia i paesi con un valore di `co2` effettivamente disponibile (`Paesi_con_CO2`, poiché 3 microstati — Monaco, San Marino e Vaticano — hanno `NA`).
 
-```{r}
+```{r summary-2025}
 data_countries |>
   filter(year == 2025) |>
   summarise(
     Paesi = n(),
-    Media_CO2 = mean(co2, na.rm = TRUE),
-    Mediana_CO2 = median(co2, na.rm = TRUE),
-    Max_CO2 = max(co2, na.rm = TRUE),
-    Media_ProCapite = mean(co2_per_capita, na.rm = TRUE),
-    Mediana_ProCapite = median(co2_per_capita, na.rm = TRUE)
-  )
+    Paesi_con_CO2 = sum(!is.na(co2)),
+    Media_CO2_Mt = mean(co2, na.rm = TRUE),
+    Mediana_CO2_Mt = median(co2, na.rm = TRUE),
+    Max_CO2_Mt = max(co2, na.rm = TRUE),
+    Media_ProCapite_t = mean(co2_per_capita, na.rm = TRUE),
+    Mediana_ProCapite_t = median(co2_per_capita, na.rm = TRUE)
+  ) |>
+  knitr::kable(digits = 2)
 ```
 
-**Come leggere la tabella.** Se la *media* è molto più alta della *mediana*, significa che poche nazioni emettono moltissimo e "trascinano" la media verso l'alto, mentre la maggior parte dei paesi emette poco. È la prima prova numerica di una distribuzione molto **disuguale**.
+**Come leggere la tabella.** La *media* delle emissioni totali (`171,6 Mt`) è quasi **17 volte più alta** della *mediana* (`10,2 Mt`): pochissime nazioni emettono volumi enormi e trascinano la media verso l'alto, mentre la metà dei paesi emette meno di 10 Mt l'anno. È la prima prova numerica di una distribuzione fortemente asimmetrica.
 
-Vediamo chi sono i maggiori emettitori nel 2025:
+Vediamo i cinque maggiori emettitori annuali nel 2025:
 
-```{r}
+```{r top5-2025}
 data_countries |>
   filter(year == 2025) |>
   slice_max(co2, n = 5) |>
-  select(country, co2, co2_per_capita, population)
+  transmute(
+    Paese = country,
+    CO2_Mt = co2,
+    CO2_pro_capite_t = co2_per_capita,
+    Popolazione_M = population / 1e6
+  ) |>
+  knitr::kable(digits = 2)
 ```
 
 # 4. Visualizzazioni
 
 ## 4.1 Chi ha emesso di più nella storia?
 
-Le emissioni *annuali* fotografano il presente, ma il clima risente di **tutta la CO₂ accumulata** in atmosfera. Per questo guardiamo le emissioni **cumulative** dal 1750 al 2025: prendiamo il valore dell'ultimo anno (che già contiene la somma di tutti i precedenti) e mostriamo i 10 paesi più "responsabili".
+Le emissioni *annuali* fotografano il presente, ma il riscaldamento globale dipende da **tutta la CO₂ accumulata** in atmosfera nel tempo. Guardiamo quindi le emissioni **cumulative** dal 1750 al 2025 (convertite da milioni a **miliardi** di tonnellate, Gt) per i 10 paesi storicamente più responsabili.
 
-```{r}
+```{r plot-cumulative}
 data_countries |>
   filter(year == 2025, !is.na(cumulative_co2)) |>
   slice_max(cumulative_co2, n = 10) |>
-  ggplot(aes(x = reorder(country, cumulative_co2), y = cumulative_co2 / 1000)) +
+  mutate(cumulative_gt = cumulative_co2 / 1000) |>
+  ggplot(aes(x = fct_reorder(country, cumulative_gt), y = cumulative_gt)) +
   geom_col(fill = "#1d3557") +
+  geom_text(
+    aes(label = round(cumulative_gt, 0)),
+    hjust = -0.2,
+    size = 3.2,
+    color = "#1d3557"
+  ) +
   coord_flip() +
+  expand_limits(y = 485) +
   labs(
-    title = "Top 10 paesi per emissioni cumulative storiche (1750-2025)",
+    title = "Top 10 paesi per emissioni cumulative storiche (1750–2025)",
     x = NULL,
-    y = "CO2 cumulativa (miliardi di tonnellate)"
+    y = "CO₂ cumulativa (miliardi di tonnellate)"
   ) +
   theme_minimal()
 ```
 
-Dividiamo per 1000 per passare da milioni a **miliardi** di tonnellate, così i numeri sull'asse sono più leggibili.
+Mentre nel 2025 la Cina è il primo emettitore annuale, sul piano **storico** gli Stati Uniti restano nettamente primi (`439 Gt`), seguiti da Cina (`298 Gt`), Russia (`124 Gt`) e paesi europei di antica industrializzazione come Germania e Regno Unito.
 
 ## 4.2 Emissioni pro capite: il peso del singolo cittadino
 
-Un paese può emettere tanto perché è grande o perché ogni abitante emette molto. Il grafico seguente separa le due cose:
+Un paese può emettere molto perché è molto popoloso o perché ogni abitante ha un'impronta elevata. Il grafico seguente separa i due effetti (limitandosi ai paesi con oltre 1 milione di abitanti per evitare distorsioni da piccoli stati insulari o città-stato):
 
-- asse **x**: popolazione (in scala logaritmica, perché le popolazioni vanno da pochi milioni a oltre un miliardo);
-- asse **y**: tonnellate di CO₂ **per persona**;
+- asse **x**: popolazione in scala logaritmica;
+- asse **y**: tonnellate di CO₂ **per persona** (la linea tratteggiata indica la media mondiale 2025);
 - **dimensione** del punto: emissioni totali del paese.
 
-Teniamo solo i paesi con più di 1 milione di abitanti per evitare piccole nazioni con valori estremi. Etichettiamo i paesi più grandi o più "inquinanti" per persona, oltre all'Italia come riferimento.
+```{r plot-per-capita}
+world_pc_2025 <- data_continents |>
+  filter(country == "World", year == 2025) |>
+  pull(co2_per_capita)
 
-```{r}
 data_countries |>
   filter(year == 2025, !is.na(co2_per_capita), !is.na(population), population > 1e6) |>
+  mutate(
+    label = if_else(
+      co2 > 1500 | co2_per_capita > 18 | country == "Italy",
+      country,
+      ""
+    )
+  ) |>
   ggplot(aes(x = population, y = co2_per_capita, size = co2)) +
-  geom_point(alpha = 0.65, colour = "darkred") +
-  geom_text(
-    aes(label = ifelse(co2 > 1500 | co2_per_capita > 18 | country == "Italy", country, "")),
-    vjust = -0.8, size = 3, check_overlap = TRUE
-  ) +
+  geom_hline(yintercept = world_pc_2025, linetype = "dashed", color = "grey45") +
+  geom_point(alpha = 0.65, color = "#b22222") +
+  geom_text(aes(label = label), vjust = -0.8, size = 3, check_overlap = TRUE) +
   scale_x_log10(labels = scales::label_number(scale_cut = scales::cut_short_scale())) +
   scale_size_continuous(range = c(2, 14), labels = scales::comma) +
   labs(
     title = "Popolazione vs Emissioni pro capite (Paesi > 1M abitanti, 2025)",
+    subtitle = paste0("Linea tratteggiata: media mondiale (", round(world_pc_2025, 2), " t/persona)"),
     x = "Popolazione (scala logaritmica)",
-    y = "CO2 pro capite (tonnellate / persona)",
-    size = "CO2 totale (Mt)"
+    y = "CO₂ pro capite (tonnellate / persona)",
+    size = "CO₂ totale (Mt)"
   ) +
   theme_minimal()
 ```
 
+Il confronto tra **India** (`2,2 t/persona` ma `3.203 Mt` totali) e paesi del Golfo come **Qatar** (`31,5 t/persona`) o **Stati Uniti** (`14,5 t/persona`) rende evidente la differenza tra peso demografico e intensità individuale. L'Italia (`5,0 t/persona`) si colloca appena sopra la media mondiale (`4,7 t/persona`).
+
 ## 4.3 Come sono cambiate le emissioni dei continenti
 
-Infine guardiamo la **dinamica nel tempo**: un grafico a linee con le emissioni annuali di ogni continente dal 1950 a oggi. Escludiamo "World" perché è la somma di tutti e schiaccerebbe le altre linee.
+Osserviamo ora la **dinamica temporale** delle emissioni annuali per continente dal 1950 al 2025 (escludendo `World` per non schiacciare le altre curve).
 
-```{r}
+```{r plot-continents}
 data_continents |>
   filter(country != "World", year >= 1950) |>
   ggplot(aes(x = year, y = co2, color = country)) +
-  geom_line(linewidth = 1.3) +
+  geom_line(linewidth = 1.2) +
+  scale_color_brewer(palette = "Dark2") +
+  scale_y_continuous(labels = scales::comma) +
   labs(
     title = "Andamento delle emissioni annuali per continente (1950–2025)",
     x = "Anno",
@@ -194,98 +232,199 @@ data_continents |>
   theme_minimal()
 ```
 
-Qui si vede il cambio di protagonisti: l'Europa e il Nord America dominano a metà Novecento, poi l'Asia cresce fino a superare tutti.
+Si vede chiaramente lo spostamento del baricentro globale: Europa e Nord America dominano per tutta la seconda metà del Novecento, poi dai primi anni Duemila l'Asia accelera fino a superare la somma di tutti gli altri continenti (`23.572 Mt` nel 2025), mentre l'Africa resta su livelli molto più bassi (`1.558 Mt`).
+
+## 4.4 La trasformazione del mix di combustibili
+
+Per collegare l'analisi statistica alla dimensione timbrica della nostra opera sonora, visualizziamo infine come è cambiato il contributo globale di **carbone**, **petrolio** e **gas naturale** dal 1900 al 2025.
+
+```{r plot-fuels}
+data_continents |>
+  filter(country == "World", year >= 1900) |>
+  select(year, coal_co2, oil_co2, gas_co2) |>
+  pivot_longer(
+    cols = c(coal_co2, oil_co2, gas_co2),
+    names_to = "fuel",
+    values_to = "co2"
+  ) |>
+  mutate(
+    fuel = factor(
+      fuel,
+      levels = c("coal_co2", "oil_co2", "gas_co2"),
+      labels = c("Carbone", "Petrolio", "Gas naturale")
+    )
+  ) |>
+  ggplot(aes(x = year, y = co2, fill = fuel)) +
+  geom_area(alpha = 0.88) +
+  scale_fill_manual(
+    values = c("Carbone" = "#334155", "Petrolio" = "#d97706", "Gas naturale" = "#0284c7")
+  ) +
+  scale_y_continuous(labels = scales::comma) +
+  labs(
+    title = "Emissioni globali di CO₂ per combustibile fossile (1900–2025)",
+    subtitle = "Escluse le fonti industriali minori (cemento e flaring, ~6% nel 2025)",
+    x = "Anno",
+    y = "Emissioni annuali (milioni di tonnellate)",
+    fill = "Combustibile"
+  ) +
+  theme_minimal()
+```
+
+Nel 1900 il carbone rappresentava quasi la totalità delle emissioni mondiali (`95,7%`). Tra il 1968 e il 2004 il petrolio diventa la prima fonte, prima che il carbone torni in testa dal 2005 con la rapida industrializzazione asiatica. Nel frattempo il gas naturale cresce in modo costante fino al `20,7%` del totale mondiale del 2025: una transizione non sostitutiva, ma *additiva*, in cui ogni nuova fonte si somma alle precedenti.
 
 # 5. Dai dati al suono: parametri per il Data-driven sampler
 
-Passiamo ora dalla parte analitica a quella **artistica**. L'idea è che ogni coppia *regione + anno* diventi **un suono** (un "pad" del sampler). Le caratteristiche del suono vengono decise dai dati, così che **ascoltare** significhi **confrontare** emissioni di epoche e continenti diversi.
+Passiamo dalla parte analitica a quella **artistica**. L'idea è che ogni coppia *continente + anno* diventi **un suono** (un "pad" del sampler). Le caratteristiche del suono derivano direttamente dai dati, così che **ascoltare** significhi **confrontare** epoche e aree del pianeta.
 
 ## 5.1 Quali regioni e quali anni
 
-Scegliamo 4 regioni e 4 anni-chiave, per un totale di 16 suoni:
+Scegliamo 4 continenti (`Europe`, `North America`, `Asia`, `Africa`) e 4 anni-chiave, per un totale di **16 pad**:
 
-- **1900**: l'industrializzazione europea e americana a base di carbone;
-- **1950**: il dopoguerra, l'inizio della grande accelerazione;
-- **1990**: l'anno di riferimento dei trattati sul clima;
+- **1900**: l'industrializzazione europea e nordamericana a base di carbone;
+- **1950**: il dopoguerra e l'inizio della grande accelerazione;
+- **1990**: l'anno di riferimento dei primi trattati internazionali sul clima;
 - **2025**: il presente.
 
 ## 5.2 Come i dati diventano suono
 
-Ad ogni variabile del dataset associamo **una dimensione sonora** diversa:
+Ad ogni variabile del dataset associamo una **dimensione sonora** distinta:
 
-| Dato | Suono | Perché ha senso |
-|------------------------|------------------------|------------------------|
-| `co2_per_capita` | **altezza** (frequenza in Hz) | Più ognuno emette, più il suono è acuto e "teso" |
-| `co2` (totale) | **volume** (gain) | Più emissioni totali, più il suono è forte |
-| `cumulative_co2` | **durata** (decay in secondi) | La CO₂ resta in atmosfera per secoli: più è accumulata, più il suono si prolunga |
-| combustibile dominante | **timbro** (campione sonoro) | Carbone, petrolio e gas hanno "voci" diverse |
+| Dato | Parametro sonoro | Significato percettivo |
+|---|---|---|
+| `co2_per_capita` | **altezza** (frequenza in Hz) | Più ogni abitante emette, più il suono sale di registro e diventa teso |
+| `co2` (annuale) | **volume** (`gain_norm`) | Più sono alte le emissioni totali, più il suono ha presenza e peso |
+| `cumulative_co2` | **durata** (`decay_sec`) | La CO₂ resta in atmosfera per secoli: più è accumulata, più il suono si prolunga |
+| `coal_co2`, `oil_co2`, `gas_co2` | **timbro / carattere** | Combustibile dominante e quote relative definiscono la "voce" energetica del pad |
 
-Alcune scelte tecniche da conoscere:
+Scelte tecniche principali:
 
-- **Normalizzazione**: dividiamo ogni valore per il massimo, così otteniamo numeri tra 0 e 1 che poi "stiriamo" sull'intervallo sonoro desiderato. Il massimo è calcolato sulle sole 16 righe selezionate, quindi i suoni sono confrontabili **tra loro** (non con altri anni o regioni).
-- **Radice quadrata per il volume**: i totali variano di migliaia di volte (l'Africa del 1900 contro l'Asia del 2025). Con la radice quadrata il suono più debole resta comunque udibile e quello più forte non è sproporzionato. Il valore minimo di 0.2 garantisce che nessun suono scompaia.
-- **Frequenze**: il suono più basso è 65 Hz (circa un Do grave), il più alto 585 Hz, cioè un intervallo di poco più di 3 ottave.
-- **Frequenza lineare o logaritmica?** L'orecchio percepisce l'altezza in modo **logaritmico**: ciò che conta è il *rapporto* tra due frequenze, non la differenza in Hz. Una mappatura lineare (`freq_hz`) fa sembrare grandi le differenze tra chi emette poco e piccole quelle tra chi emette tanto. Per questo calcoliamo anche una versione logaritmica (`freq_hz_log`), in cui uno stesso rapporto tra due emissioni pro capite corrisponde sempre allo stesso intervallo musicale. Nel sampler si può usare quella che si preferisce: la versione logaritmica è più fedele ai dati.
+- **Normalizzazione interna**: i massimi sono calcolati sulle 16 righe selezionate, così tutti i 16 pad sono direttamente confrontabili tra loro sull'intera estensione dello strumento.
+- **Radice quadrata per il volume**: i totali variano di oltre quattro ordini di grandezza (dai `2,3 Mt` dell'Africa 1900 ai `23.572 Mt` dell'Asia 2025). La radice quadrata con soglia minima `0.2` evita che i valori più bassi spariscano pur preservando la gerarchia dei volumi.
+- **Estensione di frequenza**: da `65 Hz` (circa Do2) a `585 Hz`, pari a poco più di 3 ottave (`log2(585/65) ≈ 3,17`).
+- **Frequenza lineare in Hz o lineare in semitoni?** L'orecchio percepisce l'altezza in modo **logaritmico rispetto agli Hz** (in ottave e semitoni, non in differenze di Hz). Una mappatura lineare in Hz (`freq_hz`) dilata le differenze vicine allo zero e comprime quelle in alto. Per questo calcoliamo `freq_hz_log`, che cresce esponenzialmente in Hz ed è quindi **lineare in semitoni**: ogni `+1 t/persona` alza il suono sempre dello stesso intervallo musicale (**~2,7 semitoni**). È l'equivalente sonoro di un asse lineare in un grafico, e restituisce fedelmente all'orecchio la disuguaglianza pro capite senza distorcerla.
+- **Quote dei combustibili**: oltre al `dominant_fuel`, esportiamo anche le quote percentuali `coal_share`, `oil_share` e `gas_share`. Infatti il gas naturale non risulta mai primo in nessuno dei 16 pad (pur raggiungendo ~38% in Europa e Nord America nel 2025): avere le tre quote permette al sampler di far emergere l'intero mix energetico.
 
-```{r}
-target_regions = c("Europe", "North America", "Asia", "Africa")
-target_years = c(1900, 1950, 1990, 2025)
+```{r build-sampler-pads}
+target_regions <- c("Europe", "North America", "Asia", "Africa")
+target_years <- c(1900, 1950, 1990, 2025)
+freq_min <- 65
+freq_max <- 585
 
-sampler_pads = data_continents |>
+sampler_pads <- data_continents |>
   filter(country %in% target_regions, year %in% target_years) |>
   mutate(
-    # i combustibili mancanti diventano 0 (nessuna emissione registrata)
-    across(c(coal_co2, oil_co2, gas_co2), ~ replace_na(.x, 0)),
+    across(c(coal_co2, oil_co2, gas_co2), \(x) replace_na(x, 0)),
     country = factor(country, levels = target_regions),
+    fuel_total = coal_co2 + oil_co2 + gas_co2,
 
-    # combustibile con più emissioni (confronto tra i tre valori)
+    # quote relative dei tre combustibili principali
+    coal_share = round(if_else(fuel_total > 0, coal_co2 / fuel_total, 0), 3),
+    oil_share = round(if_else(fuel_total > 0, oil_co2 / fuel_total, 0), 3),
+    gas_share = round(if_else(fuel_total > 0, gas_co2 / fuel_total, 0), 3),
+
+    # combustibile prevalente
     dominant_fuel = case_when(
-      coal_co2 + oil_co2 + gas_co2 == 0 ~ "unknown",
+      fuel_total == 0 ~ "unknown",
       coal_co2 >= oil_co2 & coal_co2 >= gas_co2 ~ "coal",
       oil_co2 >= coal_co2 & oil_co2 >= gas_co2 ~ "oil",
-      TRUE ~ "gas"
+      .default = "gas"
     ),
 
-    # ---- mappatura dei parametri sonori ----
-    # altezza: da 65 Hz a 585 Hz, in proporzione al pro capite (lineare)
-    freq_hz = round(65 + (co2_per_capita / max(co2_per_capita, na.rm = TRUE)) * 520, 1),
-    # altezza, versione logaritmica (stessa estensione, 65-585 Hz)
-    freq_hz_log = round(65 * (585 / 65)^(co2_per_capita / max(co2_per_capita, na.rm = TRUE)), 1),
-    # volume: da 0.2 a 1, in proporzione alla radice del totale annuo
-    gain_norm = round(0.2 + 0.8 * (sqrt(co2) / sqrt(max(co2, na.rm = TRUE))), 3),
-    # durata: da 0.25 a 2.45 secondi, in proporzione alla CO2 cumulata
-    decay_sec = round(0.25 + 2.2 * (cumulative_co2 / max(cumulative_co2, na.rm = TRUE)), 2)
+    # normalizzazioni sui 16 pad
+    pc_norm = co2_per_capita / max(co2_per_capita, na.rm = TRUE),
+    co2_norm = sqrt(co2) / sqrt(max(co2, na.rm = TRUE)),
+    cum_norm = cumulative_co2 / max(cumulative_co2, na.rm = TRUE),
+
+    # parametri sonori
+    freq_hz = round(freq_min + pc_norm * (freq_max - freq_min), 1),
+    freq_hz_log = round(freq_min * (freq_max / freq_min)^pc_norm, 1),
+    gain_norm = round(0.2 + 0.8 * co2_norm, 3),
+    decay_sec = round(0.25 + 2.2 * cum_norm, 2)
   ) |>
   arrange(country, year) |>
-  select(country, year, co2, co2_per_capita, cumulative_co2,
-         dominant_fuel, freq_hz, freq_hz_log, gain_norm, decay_sec)
+  select(
+    country, year, co2, co2_per_capita, cumulative_co2,
+    dominant_fuel, coal_share, oil_share, gas_share,
+    freq_hz, freq_hz_log, gain_norm, decay_sec
+  )
 
-sampler_pads
-```
-
-## 5.3 Controllo di qualità
-
-Prima di esportare verifichiamo che non ci siano valori mancanti nei parametri sonori: un `NA` diventerebbe un suono rotto nel sampler. Se la tabella qui sotto è **vuota**, è tutto a posto.
-
-```{r}
 sampler_pads |>
-  filter(if_any(everything(), is.na))
+  knitr::kable()
 ```
 
-## 5.4 Esportazione in JSON
+## 5.3 Mappa visiva della griglia 4×4 del sampler
 
-Il sampler (che gira fuori da R) legge i dati da un file JSON, un formato di testo facile da usare in qualsiasi linguaggio.
+Prima di passare all'audio, visualizziamo la stessa griglia **4 anni × 4 continenti** che compone i 16 pad: la dimensione del cerchio rappresenta il volume (`gain_norm`), il colore il combustibile dominante e le etichette riportano altezza percettiva (`freq_hz_log`) e durata (`decay_sec`).
 
-```{r}
+```{r plot-sampler-grid}
+sampler_pads |>
+  mutate(year_f = factor(year, levels = rev(target_years))) |>
+  ggplot(aes(x = country, y = year_f)) +
+  geom_tile(fill = "#f8fafc", color = "#cbd5e1", linewidth = 0.8) +
+  geom_point(aes(size = gain_norm, color = dominant_fuel), alpha = 0.85) +
+  geom_text(
+    aes(label = paste0(freq_hz_log, " Hz\n", decay_sec, " s")),
+    size = 3,
+    color = "#0f172a",
+    fontface = "bold"
+  ) +
+  scale_size_continuous(range = c(8, 26), guide = "none") +
+  scale_color_manual(
+    values = c("coal" = "#64748b", "oil" = "#f59e0b", "gas" = "#0284c7"),
+    labels = c("coal" = "Carbone", "oil" = "Petrolio", "gas" = "Gas")
+  ) +
+  labs(
+    title = "Mappa dei 16 pad del Climate Sampler",
+    subtitle = "Dimensione = volume (CO₂ annua) | Etichette = altezza percettiva (Hz) e durata (s)",
+    x = "Continente (colonne del sampler)",
+    y = "Anno (righe del sampler)",
+    color = "Combustibile dominante"
+  ) +
+  theme_minimal() +
+  theme(panel.grid = element_blank())
+```
+
+## 5.4 Controllo di qualità ed esportazione in JSON
+
+Verifichiamo che non ci siano valori `NA` nei parametri sonori (la tabella deve avere **0 righe**) ed esportiamo il file `sampler_data.json` pronto per essere letto dal sampler.
+
+```{r quality-and-export}
+na_rows <- sampler_pads |>
+  filter(if_any(everything(), is.na))
+
+stopifnot(nrow(na_rows) == 0)
+
 write_json(sampler_pads, "sampler_data.json", pretty = TRUE)
 ```
 
+Il controllo è superato (`r nrow(na_rows)` righe con valori mancanti) e il file `sampler_data.json` è stato salvato correttamente.
+
+## 5.5 Dagli oscillatori agli strumenti e al vinile (`sampler.html`)
+
+Il file `sampler_data.json` alimenta direttamente la web app autonoma `sampler.html` (eseguibile anche offline nel browser tramite Web Audio API):
+
+- **Un continente, uno strumento:** sopra ciascuna delle 4 colonne è possibile scegliere lo strumento sintetizzato (`Kick / Sub`, `Basso Analog`, `Snare / Perc + Hi-Hat`, `Synth / Rhodes`, `Hi-Hat / Shaker`), con default impostato per costruire un beat bilanciato (`Europa → Basso`, `Nord America → Synth`, `Asia → Kick`, `Africa → Percussioni`) e *panning* stereo geografico da Ovest a Est.
+- **Fedeltà analitica e resa musicale:** un selettore permette di passare dalla modalità musicale (`Scala: Do minore`, con progressione armonica su 2 battute e accordi a 3 voci sul synth) alle frequenze pure (`Hz grezzi`) calcolate in R.
+- **Gestione pulita della persistenza (`cumulative_co2`):** `decay_sec` regola la mandata verso un riverbero stereo e un delay sincronizzato ai BPM, mentre una saturazione analogica normalizzata (`tanh`) e un *Limiter* master (`DynamicsCompressorNode`) evitano qualsiasi distorsione digitale anche nei pattern più densi del 2025 e dello scenario proiettivo 2050.
+- **Sequencer a 16 step e incisione del vinile:** oltre ai 5 preset storici (`86 → 140 BPM`) e alla modalità guidata `PLAY STORIA (1900→2050)`, il pulsante `INCIDI VINILE` registra un giro del loop e lo trasforma in un'immagine PNG 1200×1200 a forma di disco 33 giri, i cui solchi seguono l'onda sonora e il colore dell'etichetta riporta il mix carbone/petrolio/gas dell'epoca.
+
 # 6. Domande finali
 
-**Può l'arte dei dati rivelare pattern che la visualizzazione convenzionale non mostra?**
+### 1. Può l'arte dei dati rivelare pattern che la visualizzazione convenzionale non mostra?
 
-*(Da completare con le vostre riflessioni. Spunto: nei grafici l'occhio confronta barre e posizioni; con il suono si percepisce la **durata**, ossia l'idea di una CO₂ che "non svanisce". Nel sampler i suoni delle emissioni passate continuano a risuonare nel presente.)*
+Sì, non perché i grafici tradizionali siano incompleti sul piano numerico, ma perché **vista e udito organizzano l'informazione in modo diverso**. Un grafico convenzionale congela il tempo sullo spazio: permette di leggere valori esatti, confrontare lunghezze e scorrere avanti e indietro con lo sguardo a proprio ritmo. Proprio per questo, però, tende ad appiattire la dimensione temporale e la simultaneità dei fenomeni.
 
-**La comprensione emotiva è una forma legittima di comprensione dei dati?**
+Nel nostro sampler il suono mette in evidenza due aspetti difficili da "sentire" in una tabella o in un istogramma:
 
-*(Da completare. Spunto: un numero come "22 000 Mt" è difficile da afferrare, un suono troppo forte o troppo lungo è qualcosa che si sente nel corpo, e può motivare ad agire.)*
+- **La persistenza cumulativa:** associando `cumulative_co2` alla durata del suono (`decay_sec`), le emissioni accumulate da Europa, Nord America e Asia nel 1990 e nel 2025 non si chiudono sul battito, ma continuano a risuonare e sovrapporsi ai suoni successivi. L'ascoltatore percepisce direttamente che la CO₂ emessa decenni fa è ancora presente in atmosfera.
+- **L'accelerazione e la saturazione d'insieme:** passando dai pattern radi e puliti del 1900 alla densità del 2025, la crescita non appare come una semplice curva che sale verso l'angolo in alto a destra, ma come un cambiamento fisico di ritmo, affollamento e tensione acustica.
+
+Resta vero l'inverso: a orecchio è quasi impossibile stimare se un valore sia `4.844 Mt` o `6.240 Mt`. La data art non sostituisce l'analisi statistica, ma rivela **dinamiche di durata, densità e contrasto** che nei grafici statici restano astratte.
+
+### 2. La comprensione emotiva è una forma legittima di comprensione dei dati?
+
+Sì, a una condizione precisa: che **l'emozione nasca dai dati e non li manipoli**. Davanti a cifre come `38.995 milioni di tonnellate` di CO₂ globali nel 2025 (o `23.572 Mt` per la sola Asia), la mente umana fatica a costruire un'immagine concreta — è il fenomeno noto in psicologia come *psychic numbing*: oltre una certa soglia, i numeri grandi diventano etichette astratte.
+
+Tradurre quelle grandezze in un'esperienza sonora — un registro acuto che segnala l'impronta pro capite, un peso sonoro che schiaccia le voci più deboli, code lunghe che saturano lo spazio — trasforma una statistica in una percezione immediata e corporea. Capire *quanto* sia disuguale il divario tra `1,0 t/persona` in Africa e `14,2 t/persona` in Nord America, o *quanto* sia rapida l'accelerazione dal 1950 a oggi, significa anche coglierne il peso reale, non solo memorizzare due cifre.
+
+Proprio perché l'impatto emotivo è potente, la trasparenza della mappatura diventa essenziale: scegliere una scala lineare in semitoni (`freq_hz_log`) invece di amplificare artificialmente i contrasti, e documentare ogni scelta nell'analisi R, garantisce che la risposta emotiva dell'ascoltatore resti ancorata alla realtà statistica del dataset.
